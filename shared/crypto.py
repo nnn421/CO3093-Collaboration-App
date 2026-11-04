@@ -1,214 +1,157 @@
+"""B2 + B6 - Trao đổi khóa X25519, HKDF tách 4 khóa, kênh TCP mã hóa, chữ ký Ed25519 bắt buộc.
+
+Vì sao 4 khóa: mỗi (kênh, chiều) một khóa riêng -> bộ đếm nonce của kênh này
+không bao giờ đụng nonce của kênh kia, kể cả khi cả hai bắt đầu từ 0.
 """
-shared/crypto.py
-----------------
-Module cung cấp toàn bộ tiện ích bảo mật và mật mã học cho hệ thống CO3093:
-  1. Băm và kiểm tra mật khẩu người dùng: PBKDF2-HMAC-SHA256 (100,000 vòng lặp).
-  2. Trao đổi khóa bảo mật trên đường truyền: X25519 ECDH (Elliptic Curve Diffie-Hellman).
-  3. Dẫn xuất khóa phiên an toàn: HKDF-SHA256 (phái sinh 4 khóa AES-256 32B riêng biệt).
-  4. Mã hóa dòng xác thực: AES-256-GCM với Nonce 12B và AAD (Additional Authenticated Data).
-"""
+from __future__ import annotations
 
 import hashlib
-import hmac
 import os
-from typing import Dict, Tuple
+import struct
+from dataclasses import dataclass
 
-from cryptography.exceptions import InvalidTag
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import x25519
+from cryptography.exceptions import InvalidSignature, InvalidTag
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
+from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives.serialization import (
-    Encoding,
-    PublicFormat,
-)
 
-from shared.config import (
-    AES_KEY_SIZE,
-    AES_GCM_NONCE_SIZE,
-    PBKDF2_ITERATIONS,
-    PBKDF2_SALT_SIZE,
-)
+from shared import config, messages
 
-# ============================================================================
-# CÁC NGOẠI LỆ MẬT MÃ ĐẶC THÙ
-# ============================================================================
-class CryptoError(Exception):
-    """Ngoại lệ cơ sở cho các lỗi mật mã."""
-    pass
+KEY_LABELS = ("tcp_c2s", "tcp_s2c", "udp_c2s", "udp_s2c")
+X25519_PUB_BYTES = config.X25519_PUB_BYTES
 
-class CryptoDecryptionError(CryptoError):
-    """Giải mã thất bại do sai chìa khóa, sai Nonce, hoặc dữ liệu bị sửa đổi (InvalidTag)."""
-    pass
-
-class CryptoKeyExchangeError(CryptoError):
-    """Lỗi trong quá trình thỏa thuận khóa bí mật X25519."""
-    pass
+__all__ = ["InvalidTag", "SessionKeys", "derive_session_keys", "new_x25519", "x25519_pub_bytes",
+           "nonce_from_counter", "TcpSecureChannel", "load_or_create_identity", "identity_pub_bytes",
+           "kx_transcript", "sign_kx", "verify_kx", "pinned_identity_from_config"]
 
 
-# ============================================================================
-# 1. BĂM VÀ XÁC THỰC MẬT KHẨU (PBKDF2-HMAC-SHA256)
-# ============================================================================
-def hash_password(password: str, salt: bytes = None) -> Tuple[str, str]:
+@dataclass(frozen=True)
+class SessionKeys:
+    tcp_c2s: bytes
+    tcp_s2c: bytes
+    udp_c2s: bytes
+    udp_s2c: bytes
+
+
+def new_x25519() -> X25519PrivateKey:
+    return X25519PrivateKey.generate()
+
+
+def x25519_pub_bytes(priv: X25519PrivateKey) -> bytes:
+    return priv.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+
+
+def derive_session_keys(my_priv: X25519PrivateKey, peer_pub: bytes,
+                        client_pub: bytes, server_pub: bytes) -> SessionKeys:
+    """Hai bên gọi với cùng (client_pub, server_pub) sẽ ra cùng 4 khóa.
+
+    salt = SHA-256(client_pub || server_pub): gắn khóa vào đúng cặp khóa công khai của phiên này.
+    ValueError nếu peer_pub là điểm bậc thấp (shared secret toàn 0) - thư viện tự chặn.
     """
-    Băm mật khẩu người dùng bằng PBKDF2-HMAC-SHA256 với 100,000 vòng lặp.
-    
-    Args:
-        password: Chuỗi mật khẩu dạng văn bản gốc (plaintext).
-        salt: Chuỗi muối 16 bytes ngẫu nhiên (nếu None sẽ tự sinh ngẫu nhiên).
-        
-    Returns:
-        Tuple (salt_hex, hash_hex) để lưu trữ an toàn trong users.json.
-    """
-    if salt is None:
-        salt = os.urandom(PBKDF2_SALT_SIZE)
-        
-    derived_key = hashlib.pbkdf2_hmac(
-        hash_name="sha256",
-        password=password.encode("utf-8"),
-        salt=salt,
-        iterations=PBKDF2_ITERATIONS,
-        dklen=32  # 256 bits
-    )
-    return salt.hex(), derived_key.hex()
+    if len(peer_pub) != X25519_PUB_BYTES:
+        raise ValueError("khóa công khai X25519 phải 32 byte")
+    shared = my_priv.exchange(X25519PublicKey.from_public_bytes(peer_pub))
+    salt = hashlib.sha256(client_pub + server_pub).digest()
+    keys = {}
+    for label in KEY_LABELS:
+        keys[label] = HKDF(algorithm=hashes.SHA256(), length=config.AES_KEY_BYTES,
+                           salt=salt, info=label.encode()).derive(shared)
+    return SessionKeys(**keys)
 
 
-def verify_password(password: str, salt_hex: str, expected_hash_hex: str) -> bool:
+def nonce_from_counter(counter: int) -> bytes:
+    """Nonce 12 byte = counter (4B Big-Endian) + 8 byte 0. Dùng cho cả PktNum (UDP) và bộ đếm TCP."""
+    if not 0 <= counter < 2**32:
+        raise OverflowError("bộ đếm nonce tràn 32-bit: phải đóng kết nối và đăng nhập lại")
+    return struct.pack(">I", counter) + b"\x00" * 8
+
+
+class TcpSecureChannel:
+    """Kênh TCP sau KEY_EXCHANGE: mỗi thông điệp = 4B độ dài + AES-GCM(JSON) (protocol_messages.md §3.3).
+
+    Nonce = bộ đếm theo từng chiều, không gửi lên dây vì TCP đảm bảo thứ tự. AAD rỗng.
+    Lệch bộ đếm (thông điệp bị phát lại, bị xóa, bị chèn) => giải mã thất bại => đóng kết nối.
     """
-    Xác thực mật khẩu người dùng nhập vào so với mã băm đã lưu trữ.
-    Sử dụng hmac.compare_digest để ngăn chặn tấn công Timing Attack.
+
+    def __init__(self, reader, writer, send_key: bytes, recv_key: bytes):
+        self._r, self._w = reader, writer
+        self._send = AESGCM(send_key)
+        self._recv = AESGCM(recv_key)
+        self._send_ctr = 0
+        self._recv_ctr = 0
+
+    async def send(self, msg: dict) -> None:
+        ct = self._send.encrypt(nonce_from_counter(self._send_ctr), messages.encode(msg), b"")
+        self._send_ctr += 1
+        await messages.write_message(self._w, ct)
+
+    async def recv(self) -> dict:
+        ct = await messages.read_message(self._r)
+        pt = self._recv.decrypt(nonce_from_counter(self._recv_ctr), ct, b"")   # InvalidTag nếu sai
+        self._recv_ctr += 1
+        return messages.decode(pt)
+
+
+# ------------------------------------------------------------------ Ed25519: danh tính server (bắt buộc)
+def load_or_create_identity(path: str = config.SERVER_IDENTITY_FILE,
+                            pub_path: str | None = config.SERVER_IDENTITY_PUB_FILE) -> Ed25519PrivateKey:
+    """Đọc khóa danh tính dài hạn của server; lần đầu chạy thì tạo và lưu (quyền 600).
+
+    Đồng thời ghi bản công khai dạng hex ra pub_path để client chạy cùng máy đọc được.
     """
+    if os.path.exists(path):
+        with open(path, "rb") as f:
+            key = Ed25519PrivateKey.from_private_bytes(f.read())
+    else:
+        key = Ed25519PrivateKey.generate()
+        raw = key.private_bytes(serialization.Encoding.Raw, serialization.PrivateFormat.Raw,
+                                serialization.NoEncryption())
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "wb") as f:
+            f.write(raw)
+    if pub_path:
+        with open(pub_path, "w", encoding="ascii") as f:
+            f.write(identity_pub_bytes(key).hex() + "\n")
+    return key
+
+
+def identity_pub_bytes(key: Ed25519PrivateKey) -> bytes:
+    return key.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+
+
+def kx_transcript(client_pub: bytes, server_pub: bytes, identity_pub: bytes) -> bytes:
+    """Chuỗi được ký khi trao khóa (protocol_messages.md §3.2).
+
+    Có khóa client => chữ ký chỉ đúng cho đúng một lần kết nối (phát lại vô dụng).
+    Có khóa danh tính và nhãn giao thức => không dùng lẫn sang server hay giao thức khác.
+    """
+    return config.KX_LABEL + client_pub + server_pub + identity_pub
+
+
+def sign_kx(identity: Ed25519PrivateKey, client_pub: bytes, server_pub: bytes) -> bytes:
+    return identity.sign(kx_transcript(client_pub, server_pub, identity_pub_bytes(identity)))
+
+
+def verify_kx(pinned_identity_pub: bytes, sig: bytes, client_pub: bytes, server_pub: bytes) -> bool:
     try:
-        salt = bytes.fromhex(salt_hex)
-        _, computed_hash_hex = hash_password(password, salt=salt)
-        return hmac.compare_digest(computed_hash_hex, expected_hash_hex)
-    except Exception:
+        Ed25519PublicKey.from_public_bytes(pinned_identity_pub).verify(
+            sig, kx_transcript(client_pub, server_pub, pinned_identity_pub))
+        return True
+    except (InvalidSignature, ValueError):
         return False
 
 
-# ============================================================================
-# 2. TRAO ĐỔI KHÓA BẢO MẬT (X25519 ECDH)
-# ============================================================================
-def generate_x25519_keypair() -> Tuple[x25519.X25519PrivateKey, bytes]:
-    """
-    Sinh cặp khóa X25519 tạm thời (ephemeral) cho phiên bắt tay.
-    
-    Returns:
-        Tuple (private_key, raw_public_key_32_bytes)
-    """
-    private_key = x25519.X25519PrivateKey.generate()
-    public_key_bytes = private_key.public_key().public_bytes(
-        encoding=Encoding.Raw,
-        format=PublicFormat.Raw
-    )
-    return private_key, public_key_bytes
-
-
-def derive_shared_secret(
-    private_key: x25519.X25519PrivateKey,
-    peer_public_key_bytes: bytes
-) -> bytes:
-    """
-    Tính toán bí mật chung (32 bytes) từ khóa riêng của bản thân và khóa công khai của đối tác.
-    """
-    if len(peer_public_key_bytes) != 32:
-        raise CryptoKeyExchangeError(
-            f"Khóa công khai X25519 phải có độ dài đúng 32 bytes, nhận được: {len(peer_public_key_bytes)}B"
-        )
-    try:
-        peer_public_key = x25519.X25519PublicKey.from_public_bytes(peer_public_key_bytes)
-        shared_key = private_key.exchange(peer_public_key)
-        return shared_key
-    except Exception as e:
-        raise CryptoKeyExchangeError(f"Lỗi trao đổi khóa X25519: {e}") from e
-
-
-# ============================================================================
-# 3. DẪN XUẤT KHÓA PHIÊN (HKDF-SHA256)
-# ============================================================================
-# Định nghĩa các nhãn ngữ cảnh để phái sinh 4 chìa khóa hoàn toàn tách biệt:
-INFO_TCP_C2S = b"co3093-tcp-client-to-server-key"
-INFO_TCP_S2C = b"co3093-tcp-server-to-client-key"
-INFO_UDP_C2S = b"co3093-udp-client-to-server-key"
-INFO_UDP_S2C = b"co3093-udp-server-to-client-key"
-
-def derive_session_keys(shared_secret: bytes, salt: bytes = None) -> Dict[str, bytes]:
-    """
-    Dẫn xuất 4 chìa khóa AES-256 (32 bytes mỗi khóa) từ bí mật chung bằng HKDF-SHA256:
-      - tcp_c2s: Mã hóa dữ liệu Client gửi lên Server qua kênh TCP
-      - tcp_s2c: Mã hóa dữ liệu Server gửi về Client qua kênh TCP
-      - udp_c2s: Mã hóa dữ liệu Client gửi lên Server qua kênh UDP
-      - udp_s2c: Mã hóa dữ liệu Server gửi về Client qua kênh UDP
-    """
-    def _expand(info: bytes) -> bytes:
-        hkdf = HKDF(
-            algorithm=hashes.SHA256(),
-            length=AES_KEY_SIZE,  # 32 bytes
-            salt=salt,
-            info=info
-        )
-        return hkdf.derive(shared_secret)
-
-    return {
-        "tcp_c2s": _expand(INFO_TCP_C2S),
-        "tcp_s2c": _expand(INFO_TCP_S2C),
-        "udp_c2s": _expand(INFO_UDP_C2S),
-        "udp_s2c": _expand(INFO_UDP_S2C),
-    }
-
-
-# ============================================================================
-# 4. MÃ HÓA & GIẢI MÃ XÁC THỰC (AES-256-GCM)
-# ============================================================================
-def aes_gcm_encrypt(
-    key: bytes,
-    nonce: bytes,
-    plaintext: bytes,
-    aad: bytes = b""
-) -> bytes:
-    """
-    Mã hóa dữ liệu bằng AES-256-GCM.
-    
-    Args:
-        key: Khóa 32 bytes (256-bit).
-        nonce: Nonce 12 bytes chuẩn NIST.
-        plaintext: Dữ liệu cần mã hóa.
-        aad: Dữ liệu xác thực bổ sung (Header 31 bytes với Checksum=0).
-        
-    Returns:
-        Ciphertext kèm 16 bytes Authentication Tag ở đuôi (theo chuẩn của cryptography AESGCM).
-    """
-    if len(key) != AES_KEY_SIZE:
-        raise ValueError(f"Khóa AES phải có kích thước đúng {AES_KEY_SIZE} bytes.")
-    if len(nonce) != AES_GCM_NONCE_SIZE:
-        raise ValueError(f"Nonce AES-GCM phải có kích thước đúng {AES_GCM_NONCE_SIZE} bytes.")
-
-    aesgcm = AESGCM(key)
-    return aesgcm.encrypt(nonce, plaintext, aad)
-
-
-def aes_gcm_decrypt(
-    key: bytes,
-    nonce: bytes,
-    ciphertext_with_tag: bytes,
-    aad: bytes = b""
-) -> bytes:
-    """
-    Giải mã và xác thực dữ liệu bằng AES-256-GCM.
-    
-    Nếu ciphertext, khóa, nonce hoặc AAD bị thay đổi dù chỉ 1 bit,
-    hàm sẽ ném ngoại lệ CryptoDecryptionError.
-    """
-    if len(key) != AES_KEY_SIZE:
-        raise ValueError(f"Khóa AES phải có kích thước đúng {AES_KEY_SIZE} bytes.")
-    if len(nonce) != AES_GCM_NONCE_SIZE:
-        raise ValueError(f"Nonce AES-GCM phải có kích thước đúng {AES_GCM_NONCE_SIZE} bytes.")
-
-    try:
-        aesgcm = AESGCM(key)
-        return aesgcm.decrypt(nonce, ciphertext_with_tag, aad)
-    except InvalidTag as e:
-        raise CryptoDecryptionError(
-            "Xác thực thất bại (InvalidTag): Dữ liệu mã hóa hoặc Header AAD đã bị sửa đổi, "
-            "hoặc sai chìa khóa/Nonce."
-        ) from e
+def pinned_identity_from_config() -> bytes:
+    """Khóa danh tính server mà client ghim: config.SERVER_IDENTITY_PUB, hoặc file server ghi ra (cùng máy)."""
+    hex_pub = config.SERVER_IDENTITY_PUB.strip()
+    if not hex_pub and os.path.exists(config.SERVER_IDENTITY_PUB_FILE):
+        with open(config.SERVER_IDENTITY_PUB_FILE, encoding="ascii") as f:
+            hex_pub = f.read().strip()
+    if not hex_pub:
+        raise RuntimeError("chưa ghim khóa danh tính server: điền config.SERVER_IDENTITY_PUB")
+    pub = bytes.fromhex(hex_pub)
+    if len(pub) != 32:
+        raise RuntimeError("khóa danh tính server phải dài 32 byte (64 ký tự hex)")
+    return pub

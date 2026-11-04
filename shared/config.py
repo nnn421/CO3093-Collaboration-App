@@ -1,133 +1,90 @@
+"""G4 - Cấu hình tập trung. Mọi hằng số của hệ thống nằm ở đây, không hardcode nơi khác.
+
+Người phụ trách: B. Ai cần thêm hằng số thì thêm vào file này (kèm chú thích đơn vị).
+Các tên dưới đây được docs/protocol_messages.md tham chiếu trực tiếp; đổi tên phải sửa cả tài liệu.
 """
-shared/config.py
-----------------
-Cấu hình tập trung và định nghĩa hằng số cho toàn bộ hệ thống CO3093.
-Tất cả các module (Client, Server, Transport, Crypto, UI Bridge) đều
-sử dụng các hằng số này để đảm bảo tính đồng bộ 100%.
+from pathlib import Path
 
-Architecture summary:
-  TCP (port 9000) is used ONLY for:
-    1. X25519 key exchange
-    2. REGISTER / LOGIN (PBKDF2-HMAC-SHA256)
-    3. Server issues conn_id -> client sends UDP HELLO
-  After login, TCP is closed immediately. Everything else runs over UDP transport (port 9001).
-"""
+ROOT = Path(__file__).resolve().parent.parent   # thư mục gốc dự án, để đường dẫn không phụ thuộc chỗ đứng khi chạy
 
-from enum import IntEnum
+# ---------------------------------------------------------------- Mạng
+BIND_HOST = "0.0.0.0"      # server nghe trên mọi card mạng (dùng cho cả TCP và UDP)
+SERVER_HOST = "127.0.0.1"  # địa chỉ server mà client kết nối tới (đổi thành IP máy server khi chạy qua LAN)
+TCP_PORT = 9000            # kênh bắt tay + đăng nhập
+UDP_PORT = 9001            # kênh streaming (tầng A)
+HTTP_PORT = 8080           # HTTP server trong client agent (C4), ghi đè bằng --http-port
 
-# ============================================================================
-# 1. THÔNG SỐ MẠNG (NETWORKING CONFIGURATION)
-# ============================================================================
-DEFAULT_SERVER_HOST: str = "127.0.0.1"
-SERVER_HOST: str = DEFAULT_SERVER_HOST
+PROTOCOL_VERSION = 1
 
-TCP_PORT: int = 9000             # Cổng TCP dùng riêng cho bắt tay X25519 & xác thực
-TCP_AUTH_PORT: int = TCP_PORT
-UDP_PORT: int = 9001             # Cổng UDP chính phục vụ truyền dữ liệu đáng tin cậy
-UDP_TRANSPORT_PORT: int = UDP_PORT
-HTTP_PORT: int = 8080            # Cổng HTTP cục bộ phục vụ Web UI thuần
-CLIENT_HTTP_PORT: int = HTTP_PORT
+# ---------------------------------------------------------------- Stream ID (G3)
+STREAM_CONTROL = 0         # dự phòng cho điều khiển; HELLO là loại gói transport, không đi stream này
+STREAM_CHAT = 1            # tin nhắn + thỏa thuận tệp (JSON có framing 2B)
+STREAM_HEARTBEAT = 2       # best-effort, không framing
+STREAM_FILE_BASE = 3       # 3..65535: mỗi phiên truyền tệp một stream, đánh số riêng trên từng kết nối
+STREAM_ID_MAX = 0xFFFF
 
-# ============================================================================
-# 2. ĐỊNH DẠNG GÓI TIN NHỊ PHÂN (BINARY PACKET SPECIFICATION)
-# ============================================================================
-# Header chuẩn: 31 bytes cố định, thứ tự byte Big-Endian (Network Byte Order)
-# >: Big-Endian
-# B: Version (1B)
-# B: Type (1B)
-# B: Flags (1B)
-# I: ConnID (4B)
-# H: StreamID (2B)
-# I: PktNum (4B)
-# I: Seq (4B)
-# I: Ack (4B)
-# I: Window (4B)
-# H: Length (2B)
-# I: Checksum (4B - CRC32)
-HEADER_FORMAT: str = ">BBBIHIIIIHI"
-HEADER_SIZE: int = 31            # struct.calcsize('>BBBIHIIIIHI') == 31
-PROTOCOL_VERSION: int = 1        # Phiên bản giao thức hiện tại
+# ---------------------------------------------------------------- JSON (G2)
+JSON_DUMPS_KWARGS = {"ensure_ascii": False, "separators": (",", ":")}
 
-# Kích thước payload tối đa để tổng gói tin (31B Header + 1400B Data = 1431B)
-# nằm trọn trong MTU tiêu chuẩn của Ethernet (1500B), tuyệt đối tránh IP Fragmentation
-MAX_PAYLOAD_SIZE: int = 1400
-CHUNK_SIZE: int = 1000           # Kích thước chunk truyền file (nằm trong MAX_PAYLOAD_SIZE)
-MAX_PACKET_SIZE: int = HEADER_SIZE + MAX_PAYLOAD_SIZE  # 1431 bytes
+# ---------------------------------------------------------------- Kích thước (đơn vị: byte)
+CHUNK_SIZE = 1000                  # dữ liệu tệp trong một FILE_CHUNK
+TRANSFER_ID_BYTES = 16
+SHA256_BYTES = 32
+FILE_CHUNK_HEADER = TRANSFER_ID_BYTES + 4      # [16B transfer_id][4B offset]
+MAX_PACKET_PAYLOAD = 1200          # payload tối đa 1 gói UDP (trước mã hóa); 31 + 1200 + 16 < 1472,
+                                   # chọn 1200 như QUIC để an toàn cả khi đi qua VPN/đường hầm có MTU nhỏ
+FRAME_LEN_BYTES = 2                # tiền tố framing trên stream 1 và 3+
+MAX_FRAME = 0xFFFF                 # do tiền tố 2 byte
+TCP_LEN_BYTES = 4                  # tiền tố framing trên kênh TCP đăng nhập
+TCP_FRAME_MAX = 16 * 1024          # thông điệp đăng nhập không cần lớn hơn
+MAX_TEXT_BYTES = 4000              # độ dài text tối đa của một tin chat (byte UTF-8)
+MAX_MSG_ID_BYTES = 64
+MAX_FILENAME_BYTES = 255
+MAX_FILE_SIZE = 2**32 - 1          # offset 4B => tối đa 4 GiB - 1
 
-# ============================================================================
-# 3. PHÂN LOẠI LOẠI GÓI TIN (PACKET TYPES - 1 BYTE)
-# ============================================================================
-class PacketType(IntEnum):
-    HELLO = 0x01          # Bắt tay khởi tạo phiên trên UDP
-    HELLO_ACK = 0x02      # Server xác nhận phiên UDP thành công
-    DATA = 0x03           # Dữ liệu tin cậy (Chat, File, Control)
-    ACK = 0x04            # Gói báo nhận độc lập (không kèm payload)
-    HEARTBEAT = 0x05      # Gói nhịp tim duy trì kết nối (Best-effort)
-    HEARTBEAT_ACK = 0x06  # Báo nhận nhịp tim
-    FIN = 0x07            # Yêu cầu ngắt kết nối phiên làm việc
-    FIN_ACK = 0x08        # Xác nhận đã ngắt kết nối thành công
+# ---------------------------------------------------------------- Thời gian (đơn vị: giây)
+IDLE_TIMEOUT = 15                  # = 3 x HEARTBEAT_INTERVAL: mất liên tiếp 2 heartbeat vẫn chưa ngắt
+HEARTBEAT_TIMEOUT = IDLE_TIMEOUT   # cố ý trùng: một con số duy nhất cho "mất liên lạc"
+HEARTBEAT_INTERVAL = 5
+REGISTRY_SWEEP_INTERVAL = 5
+TCP_READ_TIMEOUT = 10              # chờ đọc đủ MỘT thông điệp trên kênh TCP
+AUTH_TIMEOUT = 60                  # tổng thời gian tối đa của cả giai đoạn TCP
+UDP_BIND_TIMEOUT = 10              # từ AUTH_OK đến khi nhận gói HELLO; quá hạn thì hủy conn_id
+UDP_HELLO_RETRY_INTERVAL = 1       # client gửi lại HELLO sau mỗi khoảng này
+UDP_HELLO_MAX_TRIES = 5
+FILE_OFFER_TIMEOUT = 120           # offer không ai trả lời thì hủy
+SESSION_REPLACED_GRACE = 0.5       # thời gian cho phiên cũ nhận ERROR SESSION_REPLACED trước khi bị đóng
+INITIAL_RTO = 2
+MAX_RTO = 60
 
-# Tương thích với các định nghĩa cũ
-PKT_HELLO = PacketType.HELLO
-PKT_HELLO_ACK = PacketType.HELLO_ACK
-PKT_DATA = PacketType.DATA
-PKT_ACK = PacketType.ACK
-PKT_HEARTBEAT = PacketType.HEARTBEAT
-PKT_HEARTBEAT_ACK = PacketType.HEARTBEAT_ACK
-PKT_FIN = PacketType.FIN
-PKT_FIN_ACK = PacketType.FIN_ACK
+# ---------------------------------------------------------------- Transport (tầng A)
+WINDOW_SIZE = 16                   # đơn vị: số gói
+MAX_RETRIES = 15
+PKTNUM_LIMIT = 2**32 - 1024        # gần tràn PktNum (nonce) thì đóng kết nối
 
-# ============================================================================
-# 4. CỜ ĐIỀU KHIỂN (FLAGS BITFIELD - 1 BYTE)
-# ============================================================================
-class PacketFlag(IntEnum):
-    NONE = 0x00
-    ACK = 0x01            # Trường Ack trong header hợp lệ
-    SYN = 0x02            # Gói khởi tạo kết nối
-    FIN = 0x04            # Gói kết thúc kết nối
-    ENCRYPTED = 0x08      # Payload đã được mã hóa bằng AES-256-GCM
-    RETRANSMIT = 0x10     # Đánh dấu gói tin gửi lại (Retransmission)
+# ---------------------------------------------------------------- Bảo mật
+PBKDF2_ITERATIONS = 100_000        # OWASP khuyến nghị 600 000; chọn 100 000 để đăng nhập nhanh (ghi vào báo cáo)
+SALT_BYTES = 16
+AES_KEY_BYTES = 32                 # AES-256
+GCM_TAG_BYTES = 16
+X25519_PUB_BYTES = 32
+ED25519_SIG_BYTES = 64
+KX_LABEL = b"MMT-KX-v1"            # nhãn đầu transcript được ký khi trao khóa
+MAX_LOGIN_ATTEMPTS = 5             # thất bại đến số này trên một kết nối TCP thì đóng
+USERS_FILE = str(ROOT / "users.json")
+SERVER_IDENTITY_FILE = str(ROOT / "server_identity.key")   # khóa Ed25519 dài hạn của server, tạo lần đầu chạy
+SERVER_IDENTITY_PUB_FILE = str(ROOT / "server_identity.pub")  # bản công khai (hex) server ghi ra khi khởi động
+SERVER_IDENTITY_PUB = ""           # client ghim: dán chuỗi hex server in ra khi khởi động.
+                                   # Để trống thì client đọc SERVER_IDENTITY_PUB_FILE (chỉ hợp lệ khi chạy cùng máy server)
+USERNAME_PATTERN = r"^[A-Za-z0-9_]{3,20}$"
+PASSWORD_MIN_BYTES = 6
+PASSWORD_MAX_BYTES = 128
 
-# ============================================================================
-# 5. ĐỊNH DANH PHÂN LUỒNG (STREAM IDS - 2 BYTES)
-# ============================================================================
-# Stream Multiplexing giúp các luồng chạy độc lập, ngăn ngừa Head-of-Line Blocking
-STREAM_CONTROL: int = 0          # Luồng điều khiển phiên (HELLO, FIN, Reset)
-STREAM_CHAT: int = 1             # Luồng tin nhắn chat (Broadcast, Direct Message, Room)
-STREAM_HEARTBEAT: int = 2        # Luồng nhịp tim (Best-effort, không ACK/Retransmit)
-STREAM_FILE_BASE: int = 3        # Các luồng truyền file sẽ được cấp phát từ ID >= 3
+# ---------------------------------------------------------------- Server
+OUTBOX_MAX = 1000                  # số thông điệp chờ gửi tối đa cho 1 client; tràn => client quá chậm, ngắt
+MAX_BAD_MESSAGES = 50              # quá số thông điệp sai này trên một phiên thì đóng phiên
+LOG_FORMAT = "%(asctime)s %(levelname)-7s %(name)s: %(message)s"
 
-# Tiền tố độ dài thông điệp ứng dụng (JSON framing)
-MSG_LENGTH_PREFIX_SIZE: int = 2  # 2 bytes độ dài trước mỗi message JSON
-
-# ============================================================================
-# 6. THÔNG SỐ ĐỘ TIN CẬY & THỜI GIAN CHỜ (RELIABILITY & TIMING)
-# ============================================================================
-INITIAL_RTO: float = 1.0         # Retransmission Timeout ban đầu (1.0 giây)
-DEFAULT_RTO: float = INITIAL_RTO
-MIN_RTO: float = 0.2             # Ngưỡng RTO tối thiểu (200ms)
-MAX_RTO: float = 5.0             # Ngưỡng RTO tối đa (5.0s)
-MAX_RETRIES: int = 15            # Số lần thử lại tối đa (chuẩn đề bài chịu loss 20%)
-
-HEARTBEAT_INTERVAL: float = 5.0  # Định kỳ gửi gói nhịp tim mỗi 5.0 giây
-HEARTBEAT_TIMEOUT: float = 15.0  # Hết 15 giây không nhận được gói nào coi như mất kết nối
-IDLE_TIMEOUT: float = 15.0       # Thời gian giải phóng session nếu không có hoạt động
-                                 # Bắt buộc bằng HEARTBEAT_TIMEOUT để đồng bộ phát hiện offline
-
-# Cửa sổ trượt & Điều khiển tắc nghẽn (Sliding Window & Congestion Control)
-WINDOW_SIZE: int = 16            # Số gói tối đa unACKed trong Stop-and-Wait/Sliding Window mở rộng
-DEFAULT_WINDOW_SIZE: int = 64 * 1024  # 64 KB bộ đệm nhận mặc định
-INITIAL_CWND: int = 1            # Khởi đầu Slow Start
-INITIAL_SSTHRESH: int = 64       # Ngưỡng chuyển sang Congestion Avoidance
-
-# ============================================================================
-# 7. THÔNG SỐ BẢO MẬT & MÃ HÓA (CRYPTOGRAPHIC PARAMETERS)
-# ============================================================================
-AES_KEY_SIZE: int = 32           # 256 bits = 32 bytes (AES-256)
-AES_GCM_NONCE_SIZE: int = 12     # 96 bits = 12 bytes chuẩn NIST SP 800-38D
-NONCE_SIZE: int = AES_GCM_NONCE_SIZE
-AES_GCM_TAG_SIZE: int = 16       # 128 bits = 16 bytes Authentication Tag
-PBKDF2_ITERATIONS: int = 100_000 # Số vòng lặp băm mật khẩu (chống Brute-force)
-SALT_LENGTH: int = 16            # Độ dài muối ngẫu nhiên (16 bytes)
-PBKDF2_SALT_SIZE: int = SALT_LENGTH
-USERS_FILE: str = "users.json"   # File lưu trữ tài khoản (hashed)
+# ---------------------------------------------------------------- Client
+CLIENT_TCP_TIMEOUT = 10            # client chờ mỗi phản hồi trên kênh TCP
+CLIENT_BIND_TIMEOUT = UDP_HELLO_RETRY_INTERVAL * UDP_HELLO_MAX_TRIES   # chờ USER_LIST đầu tiên sau HELLO
