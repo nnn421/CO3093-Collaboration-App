@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CO3093 — Sơ Đồ Kiến Trúc & Gọi Hàm Chi Tiết</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg: #f8fafc; --card: #fff; --border: #e2e8f0;
+  --accent: #2563eb; --text: #0f172a; --muted: #64748b;
+  --green: #059669; --purple: #7c3aed;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); font-family: 'Inter', sans-serif; color: var(--text); padding: 32px 16px; }
+.container { max-width: 1500px; margin: 0 auto; }
+h1 { font-size: 1.8rem; font-weight: 700; color: var(--accent); }
+h2 { font-size: 1.25rem; font-weight: 600; color: var(--text); margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+.subtitle { color: var(--muted); font-size: 0.95rem; margin: 4px 0 8px; }
+.badge { display: inline-block; background: #dbeafe; color: #1e40af; font-size: 0.75rem; font-weight: 600; padding: 2px 10px; border-radius: 999px; margin-bottom: 32px; }
+.section { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 32px; box-shadow: 0 1px 6px rgba(0,0,0,.06); margin-bottom: 32px; overflow-x: auto; }
+.mermaid { min-width: 1000px; }
+.legend { display: flex; flex-wrap: wrap; gap: 20px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+.legend-item { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: var(--muted); }
+.dot { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; }
+.tag-blue { background: #dbeafe; color: #1e40af; }
+.tag-green { background: #dcfce7; color: #166534; }
+.tag-purple { background: #ede9fe; color: #5b21b6; }
+hr { border: none; border-top: 1px solid var(--border); margin: 8px 0 32px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🗺️ Sơ Đồ Kiến Trúc & Luồng Gọi Hàm</h1>
+  <p class="subtitle">CO3093 — Distributed and Streaming-based Client-Server Collaboration Application</p>
+  <span class="badge">Person C: Web UI · Client Daemon · Testing</span>
+
+  <!-- DIAGRAM 1: ARCHITECTURE -->
+  <div class="section">
+    <h2>📐 Sơ Đồ 1: Kiến Trúc Hệ Thống Toàn Cảnh</h2>
+    <div class="mermaid">
+flowchart TB
+    subgraph LAYER_C["TẦNG NGƯỜI C: WEB UI · HTTP SERVER · CLIENT AGENT"]
+        direction LR
+        Browser["🌐 Trình duyệt Web\nHTML / CSS / Vanilla JS\n- Form Login / Register\n- Khung Chat Chung & DM\n- Upload File & Progress Bar"]
+        HTTP_Srv["🔌 Raw HTTP Server\nui/http_server.py :8080\n- GET Static Files\n- POST /api/login /api/chat\n- POST /api/upload\n- GET /api/events SSE Push"]
+        Agent["🧠 ClientAgent\nclient/agent.py\n- Quản lý phiên & Sự kiện\n- Điều phối TCP / UDP\n- Máy bơm inbox -> UI"]
+        FileMgr["📁 File Transfer\nclient/udp_client.py\n- Cắt chunk offset+data\n- Kiểm tra SHA-256\n- Lưu downloads/"]
+    end
+
+    subgraph LAYER_A["TẦNG NGƯỜI A: TRANSPORT ENGINE"]
+        direction TB
+        Mux["🔀 Stream Multiplexing\ntransport/udp_transport.py\nStream 0: Control HELLO FIN\nStream 1: Chat JSON\nStream 2: Heartbeat 5s\nStream 3+: File chunks\n=> Khử HoL Blocking"]
+        Rel["⚙️ Reliability & Flow\n- Stop-and-Wait ARQ\n- Sliding Window W=16\n- Dynamic RTO Karn\n- SACK Selective Retx"]
+        Pkt["🔐 Custom Packet 31B\nshared/packet.py\nstruct: BBBIHIIIIHI\nAES-256-GCM + CRC32"]
+        Lossy["🌪️ Lossy Simulator\ntransport/lossy.py\n20% packet loss\ndelay + jitter"]
+    end
+
+    subgraph CLIENT_SIDE["💻 PHÍA CLIENT — Tiến trình python.exe trên máy người dùng"]
+        LAYER_C
+        LAYER_A
+    end
+
+    subgraph NET["🌐 ĐƯỜNG TRUYỀN MẠNG LAN"]
+        TCP_N(["TCP :9000\nLogin only"])
+        UDP_N(["UDP :9001\nAll runtime traffic"])
+    end
+
+    subgraph SERVER_SIDE["🖥️ PHÍA SERVER TRUNG TÂM — Người B"]
+        TCP_S["🔑 TCP Auth\nX25519 Key Exchange\nHKDF 4 AES Keys\nPBKDF2 SQLite\nCấp ConnID"]
+        UDP_S["📡 UDP Endpoint\nCRC32 + AES-GCM\nConnID routing"]
+        Reg["👥 User Registry\nHeartbeat Timeout 15s\nUSER_LIST broadcast"]
+        Rtr["💬 Chat & File Router\nMSG_BCAST: all\nMSG_DM: direct\nFile Relay: Stream 3+"]
+    end
+
+    Browser -- "fetch POST lệnh" --> HTTP_Srv
+    HTTP_Srv -. "SSE: data:{...}" .-> Browser
+    HTTP_Srv <--> Agent
+    Agent <--> FileMgr
+    Agent --> Mux
+    FileMgr --> Mux
+    Mux <--> Rel <--> Pkt <--> Lossy
+
+    Agent -. "Bước 1 Login" .-> TCP_N --> TCP_S
+    Lossy == "Bước 2 UDP packets" ==> UDP_N ==> UDP_S
+    UDP_S <--> Reg
+    UDP_S <--> Rtr
+    Rtr == "Bước 3 Relay" ==> UDP_N
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="dot" style="background:#2563eb"></div> Mũi tên liền — Chiều gửi lệnh (Upstream)</div>
+      <div class="legend-item"><div class="dot" style="background:#94a3b8"></div> Mũi tên đứt — SSE Push (Downstream)</div>
+      <div class="legend-item"><div class="dot" style="background:#059669"></div> Mũi tên đôi — Gói UDP thực qua mạng LAN</div>
+      <div class="legend-item"><span class="tag tag-blue">Người C</span> ui/ + client/</div>
+      <div class="legend-item"><span class="tag tag-green">Người A</span> transport/</div>
+      <div class="legend-item"><span class="tag tag-purple">Người B</span> server/</div>
+    </div>
+  </div>
+
+  <!-- DIAGRAM 2: FUNCTION CALL -->
+  <div class="section">
+    <h2>🔗 Sơ Đồ 2: Quan Hệ File & Hàm Chi Tiết (Function-Level Call Diagram)</h2>
+    <div class="mermaid">
+flowchart TB
+    subgraph FILE_JS["📁 ui/static/app.js — Trình duyệt Web"]
+        direction TB
+        JS_Auth["🔑 handleAuth(mode)\nGửi form Login / Register"]
+        JS_Send["💬 sendChatMessage(content)\nBắt sự kiện gõ chat + Enter"]
+        JS_Upload["📁 uploadFile(file)\nĐọc File thành ArrayBuffer"]
+        JS_SSE["📡 startSSE()\nnew EventSource('/api/events')"]
+        JS_Render["🖥️ handleIncomingMessage(msg)\nVẽ tin nhắn + User List vào DOM"]
+    end
+
+    subgraph FILE_HTTP["📁 ui/http_server.py — Raw HTTP Server"]
+        direction TB
+        H_Route["🔀 _route_request(method, path, body)\nPhân tích HTTP/1.1 thủ công"]
+        H_Login["_api_login() / _api_register()\nParse username + password"]
+        H_Chat["_api_chat(writer, body)\nParse JSON content"]
+        H_Upload["_api_upload(writer, body)\nParse file bytes"]
+        H_SSE["⚡ _handle_sse(reader, writer)\nTạo Queue cho Tab Web\nEOF detector khi đóng Tab"]
+        H_Event["📢 _on_agent_event(event)\nCallback từ Agent -> q.put()"]
+    end
+
+    subgraph FILE_AGENT["📁 client/agent.py — Client Daemon"]
+        direction TB
+        A_Login["🔑 login(username, password)\nBắt tay TCP :9000\nLấy ConnID + 4 AES Keys\n-> _init_udp_session()"]
+        A_Chat["💬 send_chat(content)\nĐiều phối gửi broadcast"]
+        A_File["📁 send_file(to, bytes, name)\nĐiều phối gửi file"]
+        A_Pump["🔄 _event_pump()\nVòng lặp nền\nudp.inbox.get() -> callbacks"]
+        A_Reg["📝 on_event(callback)\nĐăng ký hàm lắng nghe"]
+    end
+
+    subgraph FILE_UDP["📁 client/udp_client.py — UDP Session"]
+        direction TB
+        U_Conn["🤝 connect()\nGửi HELLO Stream 0\nChờ HELLO_ACK 5s\nBật receiver + heartbeat tasks"]
+        U_HB["💓 _heartbeat_loop()\nMỗi 5s gửi HEARTBEAT Stream 2"]
+        U_Bcast["📤 send_broadcast(content)\nJSON MSG_BCAST -> Stream 1"]
+        U_File["📦 send_file(to, bytes, name)\nFILE_OFFER -> chunks 1000B -> Stream 3+"]
+        U_Recv["📥 _receive_loop()\nStream 1 -> json.loads -> inbox.put"]
+        U_RecvF["📥 _receive_file_stream()\nStream 3+ -> buf offset -> SHA-256 -> ghi đĩa"]
+    end
+
+    subgraph FILE_TRANS["📁 transport/udp_transport.py — Tầng Giao Vận"]
+        direction TB
+        T_Send["🔐 _send_raw_packet(pkt)\n1. Header 31B\n2. AES-256-GCM\n3. CRC32\n-> transport.sendto()"]
+        T_Recv["📡 datagram_received(data)\n1. Kiểm tra CRC32\n2. Giải mã AES-GCM\n3. Sliding Window ACK\n-> stream.recv()"]
+    end
+
+    JS_Auth -->|"POST /api/login"| H_Route
+    JS_Send -->|"POST /api/chat"| H_Route
+    JS_Upload -->|"POST /api/upload"| H_Route
+    H_Route --> H_Login & H_Chat & H_Upload
+    H_Login -->|"await agent.login()"| A_Login
+    H_Chat -->|"await agent.send_chat()"| A_Chat
+    H_Upload -->|"await agent.send_file()"| A_File
+    A_Login -.->|"TCP :9000 -> ConnID"| U_Conn
+    A_Chat -->|"udp_client.send_broadcast()"| U_Bcast
+    A_File -->|"udp_client.send_file()"| U_File
+    U_Bcast -->|"stream.send()"| T_Send
+    U_File -->|"chunks stream.send()"| T_Send
+    U_HB -->|"HEARTBEAT sendto()"| T_Send
+
+    T_Recv -.->|"stream.recv()"| U_Recv & U_RecvF
+    U_Recv -.->|"inbox.put(msg)"| A_Pump
+    U_RecvF -.->|"FILE_DONE inbox.put()"| A_Pump
+    A_Reg -.->|"Đăng ký lúc start"| H_Event
+    A_Pump -.->|"gọi _on_agent_event"| H_Event
+    H_Event -.->|"q.put(event)"| H_SSE
+    JS_SSE <== "SSE data:{...}" ==> H_SSE
+    H_SSE -.->|"onmessage -> render"| JS_Render
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="dot" style="background:#2563eb"></div> Mũi tên liền — Upstream: User bấm → gọi hàm xuống tầng mạng</div>
+      <div class="legend-item"><div class="dot" style="background:#94a3b8;border: 2px dashed #94a3b8"></div> Mũi tên đứt — Downstream: Dữ liệu từ mạng bơm ngược lên Web</div>
+      <div class="legend-item"><div class="dot" style="background:#059669"></div> Mũi tên đôi — SSE kênh push real-time giữ kết nối mở</div>
+    </div>
+  </div>
+
+</div>
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: 'default', flowchart: { curve: 'basis', padding: 16 } });
+</script>
+</body>
+</html>

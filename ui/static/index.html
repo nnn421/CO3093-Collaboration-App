@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="course" content="CO3093"/>
+  <title>HCMUT_Chat — Hệ thống Tin nhắn &amp; Truyền tệp Trực tuyến</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="logo-mark">BK</div>
+      <div class="logo-title">
+        <span class="logo-main">HCMUT_Chat</span>
+        <span class="logo-sub">Hệ thống Tin nhắn &amp; Truyền tệp</span>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <div id="server-target-badge" class="server-pill" style="display:none;" title="Server trung tâm đang kết nối">
+        <span class="server-dot"></span>
+        <span id="server-target-text">Server: 127.0.0.1</span>
+      </div>
+      <div id="user-profile-badge" class="user-pill" style="display:none;">
+        <span class="user-avatar" id="nav-avatar">U</span>
+        <span class="user-name" id="nav-username">username</span>
+        <span id="conn-status-badge" class="online-check-badge" title="Đang trực tuyến">✓</span>
+      </div>
+      <button id="btn-logout" class="btn btn-outline-danger" style="display:none;" onclick="handleLogout()">Đăng xuất</button>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="app-main">
+
+    <!-- 1. AUTH SCREEN (Khi chưa đăng nhập) -->
+    <div id="auth-screen" class="auth-wrap">
+      <div class="auth-card">
+        <div class="auth-tabs">
+          <button id="tab-login" class="auth-tab active" onclick="switchAuthTab('login')">Đăng nhập</button>
+          <button id="tab-register" class="auth-tab" onclick="switchAuthTab('register')">Đăng ký mới</button>
+        </div>
+
+        <div class="auth-body">
+          <div id="auth-alert" class="alert-box" style="display:none;"></div>
+
+          <div class="form-group">
+            <label for="auth-username">Tên người dùng</label>
+            <input type="text" id="auth-username" class="form-input" placeholder="Ví dụ: alice" autocomplete="off"/>
+          </div>
+
+          <div class="form-group">
+            <label for="auth-password">Mật khẩu</label>
+            <input type="password" id="auth-password" class="form-input" placeholder="Nhập mật khẩu..."/>
+          </div>
+
+          <button id="btn-auth-submit" class="btn btn-primary btn-block" onclick="submitAuth()">
+            Đăng nhập vào hệ thống
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. COLLABORATION WORKSPACE (Khi đã đăng nhập) -->
+    <div id="workspace-screen" class="workspace-grid" style="display:none;">
+
+      <!-- SIDEBAR (Kênh và Danh bạ) -->
+      <aside class="sidebar-pane">
+        <div class="pane-header">
+          <span class="pane-title">Kênh &amp; Danh bạ</span>
+        </div>
+
+        <div class="sidebar-channels">
+          <!-- Kênh Phòng Chung Cố Định -->
+          <div class="channel-section-label">Kênh công cộng</div>
+          <div id="channel-item-public" class="channel-item active" onclick="switchChannel('public')">
+            <div class="channel-item-left">
+              <span class="channel-hash">#</span>
+              <span class="channel-name">Phòng chung</span>
+            </div>
+            <span id="unread-badge-public" class="unread-pill" style="display:none;">0</span>
+          </div>
+
+          <!-- Danh sách người dùng nhắn tin riêng -->
+          <div class="channel-section-label section-users">
+            <span>Tin nhắn trực tiếp</span>
+            <span id="online-count-badge" class="counter-badge">0</span>
+          </div>
+
+          <div class="user-list" id="online-users-list">
+            <div class="empty-state">Đang tải danh bạ...</div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- CENTER CHAT AREA -->
+      <section class="chat-pane">
+        <div class="chat-header">
+          <div class="chat-title-group">
+            <span id="chat-channel-icon" class="chat-hash">#</span>
+            <div class="chat-header-text">
+              <span id="chat-channel-name" class="chat-header-title">Phòng chung</span>
+              <span id="chat-channel-desc" class="chat-header-desc">Tin nhắn công cộng tới toàn bộ người dùng</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chat messages scroll container -->
+        <div class="chat-messages" id="chat-messages-container">
+          <div class="system-bubble">Chào mừng bạn đến với HCMUT_Chat!</div>
+        </div>
+
+        <!-- Chat input bar -->
+        <div class="chat-input-bar">
+          <input type="text" id="chat-input" class="chat-input" placeholder="Nhập tin nhắn tới # Phòng chung... (Enter để gửi)" onkeydown="if(event.key==='Enter') sendChatMessage()"/>
+          <button class="btn btn-primary" onclick="sendChatMessage()">Gửi</button>
+        </div>
+      </section>
+
+      <!-- RIGHT FILE TRANSFER AREA -->
+      <aside class="file-pane">
+        <div class="pane-header">
+          <span class="pane-title">Truyền tệp tin</span>
+        </div>
+
+        <div class="file-section">
+          <div class="form-group">
+            <label for="file-recipient-select">Gửi tới người dùng:</label>
+            <select id="file-recipient-select" class="form-input">
+              <option value="">-- Chọn người nhận --</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Chọn tệp tin:</label>
+            <input type="file" id="file-picker" class="file-input" onchange="handleFileSelected()"/>
+          </div>
+
+          <div id="file-info-box" class="file-info-card" style="display:none;">
+            <div id="file-name-label" class="file-name">filename.dat</div>
+            <div id="file-size-label" class="file-size">0 KB</div>
+            <div class="progress-wrap" id="upload-progress-wrap" style="display:none;">
+              <div class="progress-bar" id="upload-progress-bar"></div>
+            </div>
+          </div>
+
+          <button id="btn-send-file" class="btn btn-emerald btn-block" onclick="startFileTransfer()" disabled>
+            Gửi tệp tin
+          </button>
+        </div>
+
+        <div class="downloads-section">
+          <div class="section-title">Tệp đã nhận</div>
+          <div class="downloads-list" id="downloads-list">
+            <div class="empty-state">Chưa có tệp nào được tải về.</div>
+          </div>
+        </div>
+      </aside>
+
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

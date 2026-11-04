@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>CO3093 — Kế hoạch Triển khai Dự án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg-page: #f8fafc;
+  --bg-card: #ffffff;
+  --border-light: #e2e8f0;
+  --border-subtle: #cbd5e1;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --text-soft: #94a3b8;
+  
+  --accent-primary: #2563eb;
+  --accent-surface: #eff6ff;
+  --accent-border: #bfdbfe;
+  
+  --person-a: #1d4ed8;
+  --person-a-bg: #eff6ff;
+  --person-a-border: #dbeafe;
+  
+  --person-b: #047857;
+  --person-b-bg: #ecfdf5;
+  --person-b-border: #d1fae5;
+  
+  --person-c: #7c3aed;
+  --person-c-bg: #f5f3ff;
+  --person-c-border: #ede9fe;
+  
+  --group-g: #b45309;
+  --group-g-bg: #fffbeb;
+  --group-g-border: #fef3c7;
+  
+  --status-todo-text: #475569;
+  --status-todo-bg: #f1f5f9;
+  --status-todo-border: #e2e8f0;
+  
+  --status-wip-text: #b45309;
+  --status-wip-bg: #fffbeb;
+  --status-wip-border: #fef3c7;
+  
+  --status-done-text: #047857;
+  --status-done-bg: #ecfdf5;
+  --status-done-border: #d1fae5;
+  
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg-page);
+  color: var(--text-main);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+/* TOP NAVBAR */
+.navbar {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border-light);
+  height: 52px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 32px;
+}
+.nav-brand {
+  font-size: 13.5px; font-weight: 600; color: var(--text-main);
+  display: flex; align-items: center; gap: 8px;
+}
+.nav-badge {
+  font-size: 11px; font-weight: 500; padding: 2px 7px;
+  background: var(--accent-surface); color: var(--accent-primary);
+  border: 1px solid var(--accent-border); border-radius: 4px;
+}
+.nav-links { display: flex; align-items: center; gap: 4px; }
+.nav-item {
+  font-size: 13px; font-weight: 500; color: var(--text-muted);
+  text-decoration: none; padding: 6px 12px; border-radius: 6px;
+  transition: all 0.15s ease;
+}
+.nav-item:hover { color: var(--text-main); background: #f1f5f9; }
+.nav-stats { display: flex; align-items: center; gap: 12px; }
+.progress-container { display: flex; align-items: center; gap: 8px; }
+.progress-track {
+  width: 120px; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden;
+}
+.progress-fill { height: 100%; background: #10b981; border-radius: 3px; transition: width 0.3s; }
+.progress-text { font-size: 12px; font-weight: 600; color: var(--text-muted); font-family: var(--font-mono); }
+
+/* HEADER */
+.page-header {
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-light);
+  padding: 36px 32px 28px;
+}
+.container { max-width: 1120px; margin: 0 auto; }
+.breadcrumb { font-size: 12px; color: var(--text-soft); margin-bottom: 8px; }
+.breadcrumb a { color: var(--text-muted); text-decoration: none; }
+.header-title { font-size: 24px; font-weight: 700; color: var(--text-main); letter-spacing: -0.02em; margin-bottom: 6px; }
+.header-desc { font-size: 14px; color: var(--text-muted); max-width: 860px; line-height: 1.6; margin-bottom: 20px; }
+
+.meta-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+.meta-chip {
+  font-size: 12px; font-weight: 500; color: var(--text-muted);
+  background: #f8fafc; border: 1px solid var(--border-light);
+  border-radius: 6px; padding: 4px 10px;
+}
+.meta-chip.danger { background: #fef2f2; border-color: #fee2e2; color: #b91c1c; font-weight: 600; }
+.meta-chip.highlight { background: #eff6ff; border-color: #dbeafe; color: #1d4ed8; }
+
+.phase-strip {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 16px;
+  background: #f8fafc; border: 1px solid var(--border-light);
+  border-radius: 8px; padding: 12px 16px; max-width: fit-content;
+}
+.phase-strip-label { font-size: 12.5px; font-weight: 600; color: var(--text-muted); }
+.phase-indicators { display: flex; align-items: center; gap: 8px; }
+.phase-box {
+  background: #ffffff; border: 1px solid var(--border-light);
+  border-radius: 5px; padding: 4px 10px; font-size: 12px; font-weight: 500; color: var(--text-muted);
+}
+.phase-box.current {
+  background: var(--accent-surface); border-color: var(--accent-border); color: var(--accent-primary); font-weight: 600;
+}
+.phase-arrow { color: var(--text-soft); font-size: 11px; }
+
+/* SUMMARY PILLS */
+.summary-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.pill-stat {
+  font-size: 12px; font-weight: 500; padding: 4px 12px; border-radius: 6px;
+  background: var(--bg-card); border: 1px solid var(--border-light);
+}
+.pill-stat strong { font-family: var(--font-mono); font-weight: 600; }
+
+/* MAIN CONTENT */
+.main-content { padding: 32px 0 64px; }
+.section { margin-bottom: 36px; }
+.section-head {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  padding-bottom: 10px; border-bottom: 1px solid var(--border-light);
+  margin-bottom: 16px;
+}
+.section-title { font-size: 16px; font-weight: 700; color: var(--text-main); }
+.section-sub { font-size: 13px; color: var(--text-muted); font-weight: 400; margin-left: 8px; }
+.section-counter { font-size: 12.5px; font-weight: 600; font-family: var(--font-mono); color: var(--text-muted); }
+
+/* PERSON CARDS */
+.team-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 24px; }
+@media (max-width: 860px) { .team-grid { grid-template-columns: 1fr; } }
+.team-card {
+  background: var(--bg-card); border: 1px solid var(--border-light);
+  border-radius: 8px; padding: 18px 20px;
+}
+.team-role { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+.role-a { color: var(--person-a); }
+.role-b { color: var(--person-b); }
+.role-c { color: var(--person-c); }
+.team-name { font-size: 15px; font-weight: 700; color: var(--text-main); margin-bottom: 8px; }
+.team-desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.55; margin-bottom: 14px; }
+.team-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.tag-sm {
+  font-size: 11px; font-weight: 500; padding: 2px 7px; border-radius: 4px;
+  background: #f1f5f9; color: var(--text-muted); border: 1px solid #e2e8f0;
+}
+
+/* TIMELINE TABLE */
+.timeline-card {
+  background: var(--bg-card); border: 1px solid var(--border-light);
+  border-radius: 8px; overflow: hidden; margin-bottom: 28px;
+}
+.tl-table { width: 100%; border-collapse: collapse; text-align: left; }
+.tl-table th {
+  background: #f8fafc; border-bottom: 1px solid var(--border-light);
+  padding: 10px 16px; font-size: 11px; font-weight: 600; text-transform: uppercase;
+  color: var(--text-muted); letter-spacing: 0.04em;
+}
+.tl-table td {
+  padding: 12px 16px; border-bottom: 1px solid var(--border-light);
+  font-size: 13px; vertical-align: top;
+}
+.tl-table tr:last-child td { border-bottom: none; }
+.phase-chip {
+  display: inline-block; font-size: 11.5px; font-weight: 600;
+  padding: 3px 8px; border-radius: 4px; margin-bottom: 4px;
+}
+
+/* TOOLBAR & FILTERS */
+.filter-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px; margin-bottom: 16px;
+  background: var(--bg-card); border: 1px solid var(--border-light);
+  border-radius: 8px; padding: 10px 14px;
+}
+.filter-group { display: flex; align-items: center; gap: 6px; }
+.filter-btn {
+  font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 5px;
+  background: transparent; border: 1px solid transparent; color: var(--text-muted);
+  cursor: pointer; transition: all 0.15s ease;
+}
+.filter-btn:hover { color: var(--text-main); background: #f1f5f9; }
+.filter-btn.active {
+  background: #f1f5f9; border-color: var(--border-subtle); color: var(--text-main); font-weight: 600;
+}
+.search-input {
+  font-family: inherit; font-size: 12.5px; padding: 5px 10px; border-radius: 6px;
+  border: 1px solid var(--border-light); background: #f8fafc; outline: none; width: 220px;
+}
+.search-input:focus { border-color: var(--accent-primary); background: #ffffff; }
+
+/* TASK LIST */
+.task-list { display: flex; flex-direction: column; gap: 6px; }
+.task-card {
+  background: var(--bg-card); border: 1px solid var(--border-light);
+  border-radius: 7px; overflow: hidden; transition: border-color 0.15s ease;
+}
+.task-card:hover { border-color: var(--border-subtle); }
+.task-card.is-done { opacity: 0.65; }
+
+.task-header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; cursor: pointer; user-select: none;
+}
+.task-id {
+  font-family: var(--font-mono); font-size: 11.5px; font-weight: 600;
+  padding: 2px 7px; border-radius: 4px; flex-shrink: 0; min-width: 32px; text-align: center;
+}
+.badge-g { background: var(--group-g-bg); color: var(--group-g); border: 1px solid var(--group-g-border); }
+.badge-a { background: var(--person-a-bg); color: var(--person-a); border: 1px solid var(--person-a-border); }
+.badge-b { background: var(--person-b-bg); color: var(--person-b); border: 1px solid var(--person-b-border); }
+.badge-c { background: var(--person-c-bg); color: var(--person-c); border: 1px solid var(--person-c-border); }
+
+.task-title-wrap { flex: 1; min-width: 0; }
+.task-title {
+  font-size: 13.5px; font-weight: 600; color: var(--text-main);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.task-title.struck { text-decoration: line-through; color: var(--text-soft); }
+.task-meta { font-size: 12px; color: var(--text-soft); display: flex; gap: 10px; margin-top: 1px; }
+
+.task-deadline { font-size: 11.5px; color: var(--text-muted); font-family: var(--font-mono); flex-shrink: 0; }
+
+.status-select {
+  font-size: 11.5px; font-weight: 600; padding: 3px 10px; border-radius: 4px;
+  border: 1px solid; cursor: pointer; outline: none; background-color: transparent;
+  flex-shrink: 0; transition: all 0.15s ease;
+}
+.status-todo { background: var(--status-todo-bg); color: var(--status-todo-text); border-color: var(--status-todo-border); }
+.status-wip  { background: var(--status-wip-bg); color: var(--status-wip-text); border-color: var(--status-wip-border); }
+.status-done { background: var(--status-done-bg); color: var(--status-done-text); border-color: var(--status-done-border); }
+
+.toggle-arrow {
+  color: var(--text-soft); font-size: 11px; width: 16px; text-align: center;
+  transition: transform 0.15s ease;
+}
+.toggle-arrow.open { transform: rotate(180deg); }
+
+/* TASK BODY */
+.task-body {
+  display: none; padding: 16px; background: #f8fafc;
+  border-top: 1px solid var(--border-light); font-size: 13px;
+}
+.task-body.open { display: block; }
+.task-detail-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; }
+@media (max-width: 768px) { .task-detail-grid { grid-template-columns: 1fr; } }
+
+.detail-block {
+  background: #ffffff; border: 1px solid var(--border-light);
+  border-radius: 6px; padding: 12px 14px;
+}
+.detail-heading {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  color: var(--text-soft); letter-spacing: 0.05em; margin-bottom: 6px;
+}
+.detail-content { color: var(--text-main); line-height: 1.6; }
+.detail-content code {
+  font-family: var(--font-mono); font-size: 12px;
+  background: #f1f5f9; padding: 1px 5px; border-radius: 3px; color: var(--accent-primary);
+}
+.file-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.file-tag {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 500;
+  background: #f1f5f9; border: 1px solid #e2e8f0; padding: 2px 7px;
+  border-radius: 4px; color: #334155;
+}
+.criteria-list { list-style: none; display: flex; flex-direction: column; gap: 5px; margin-top: 4px; }
+.criteria-item { display: flex; align-items: flex-start; gap: 6px; }
+.criteria-check { color: #10b981; font-weight: 700; line-height: 1.3; }
+
+/* RUBRIC TABLE */
+.rubric-table { width: 100%; border-collapse: collapse; background: #ffffff; border-radius: 8px; overflow: hidden; border: 1px solid var(--border-light); }
+.rubric-table th {
+  background: #f8fafc; border-bottom: 1px solid var(--border-light);
+  padding: 10px 14px; font-size: 11.5px; font-weight: 600; text-transform: uppercase;
+  color: var(--text-muted); text-align: left;
+}
+.rubric-table td {
+  padding: 10px 14px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: var(--text-main);
+}
+.rubric-table tr:last-child td { border-bottom: none; }
+.step-col { font-family: var(--font-mono); font-weight: 600; color: var(--text-muted); width: 64px; }
+.score-col { font-family: var(--font-mono); font-weight: 600; color: #047857; text-align: right; width: 70px; }
+
+/* FOOTER */
+footer {
+  border-top: 1px solid var(--border-light); background: #ffffff;
+  padding: 20px 0; text-align: center; font-size: 12px; color: var(--text-soft);
+}
+</style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav class="navbar">
+  <div class="nav-brand">
+    CO3093 Collaboration App
+    <span class="nav-badge">Kế hoạch 4 Giai đoạn</span>
+  </div>
+  <div class="nav-links">
+    <a href="#overview" class="nav-item">Tổng quan</a>
+    <a href="#timeline" class="nav-item">Lộ trình giai đoạn</a>
+    <a href="#tasks" class="nav-item">Nhiệm vụ chi tiết</a>
+    <a href="#rubric" class="nav-item">Thang điểm</a>
+  </div>
+  <div class="nav-stats">
+    <div class="progress-container">
+      <div class="progress-track">
+        <div class="progress-fill" id="global-fill" style="width: 0%"></div>
+      </div>
+      <span class="progress-text" id="global-pct">0%</span>
+    </div>
+    <span class="progress-text" id="global-count" style="color:var(--text-soft)">0 / 35</span>
+  </div>
+</nav>
+
+<!-- PAGE HEADER -->
+<header class="page-header">
+  <div class="container">
+    <div class="breadcrumb">
+      <a href="#">CO3093</a> / <a href="#">Take-home Project</a> / Kế hoạch triển khai kỹ thuật
+    </div>
+    <h1 class="header-title">Distributed &amp; Streaming-based Collaboration Application</h1>
+    <p class="header-desc">
+      Hệ thống cộng tác mạng thời gian thực trên nền socket thô (Python Raw Sockets &amp; asyncio). Phân tách chặt chẽ kênh điều khiển TCP và kênh truyền luồng UDP tin cậy đa luồng, hỗ trợ mã hóa dữ liệu AES-256-GCM.
+    </p>
+
+    <div class="meta-tags">
+      <span class="meta-chip highlight">Tiến độ: 4 Giai đoạn kỹ thuật</span>
+      <span class="meta-chip">Hình thức: Nhóm 3 người</span>
+      <span class="meta-chip">Ngôn ngữ: Python 3.10+</span>
+      <span class="meta-chip">Ràng buộc: Raw Socket only</span>
+      <span class="meta-chip">Thang điểm: 10.0</span>
+    </div>
+
+    <div class="phase-strip">
+      <span class="phase-strip-label">Lộ trình triển khai:</span>
+      <div class="phase-indicators">
+        <div class="phase-box current">GĐ 0: Hợp đồng chung</div>
+        <span class="phase-arrow">→</span>
+        <div class="phase-box">GĐ 1: Độc lập &amp; Mốc M1</div>
+        <span class="phase-arrow">→</span>
+        <div class="phase-box">GĐ 2: Tích hợp &amp; Nâng cao</div>
+        <span class="phase-arrow">→</span>
+        <div class="phase-box">GĐ 3: Chịu lỗi &amp; Test</div>
+        <span class="phase-arrow">→</span>
+        <div class="phase-box">GĐ 4: Đóng gói</div>
+      </div>
+    </div>
+
+    <div class="summary-pills">
+      <div class="pill-stat">Hợp đồng chung (GĐ 0): <strong id="stat-g">0/7</strong></div>
+      <div class="pill-stat">Người A (Transport): <strong id="stat-a">0/8</strong></div>
+      <div class="pill-stat">Người B (Server): <strong id="stat-b">0/11</strong></div>
+      <div class="pill-stat">Người C (Client &amp; UI): <strong id="stat-c">0/9</strong></div>
+    </div>
+  </div>
+</header>
+
+<!-- MAIN LAYOUT -->
+<main class="main-content">
+  <div class="container">
+
+    <!-- OVERVIEW SECTION -->
+    <section class="section" id="overview">
+      <div class="section-head">
+        <div>
+          <span class="section-title">Phân định Trách nhiệm Nhóm</span>
+          <span class="section-sub">— 3 tầng kỹ thuật độc lập tương ứng 3 thành viên</span>
+        </div>
+      </div>
+
+      <div class="team-grid">
+        <div class="team-card">
+          <div class="team-role role-a">Người A</div>
+          <div class="team-name">Tầng Giao thức Truyền tải (Transport)</div>
+          <div class="team-desc">Xây dựng lõi truyền tải tin cậy qua UDP: Stop-and-Wait, Cửa sổ trượt (Sliding Window), Selective Repeat, SACK trong payload, RTO động, Đa luồng (Multi-streaming) khử nghẽn HoL và Kiểm soát tắc nghẽn (Reno/CUBIC).</div>
+          <div class="team-tags">
+            <span class="tag-sm">UDP Datagram</span>
+            <span class="tag-sm">Sliding Window</span>
+            <span class="tag-sm">Multi-stream</span>
+            <span class="tag-sm">Congestion Control</span>
+          </div>
+        </div>
+
+        <div class="team-card">
+          <div class="team-role role-b">Người B</div>
+          <div class="team-name">Tầng Máy chủ và Bảo mật (Server Core)</div>
+          <div class="team-desc">Xây dựng máy chủ asyncio trung tâm: Bắt tay đăng nhập TCP, băm mật khẩu PBKDF2, User Registry phát hiện Heartbeat, định tuyến Broadcast/DM, File Relay có back-pressure và mã hóa AES-256-GCM với khóa X25519/HKDF.</div>
+          <div class="team-tags">
+            <span class="tag-sm">asyncio Server</span>
+            <span class="tag-sm">PBKDF2 Auth</span>
+            <span class="tag-sm">X25519 + AES-GCM</span>
+            <span class="tag-sm">Message Router</span>
+          </div>
+        </div>
+
+        <div class="team-card">
+          <div class="team-role role-c">Người C</div>
+          <div class="team-name">Tầng Máy khách, Giao diện &amp; Kiểm thử</div>
+          <div class="team-desc">Xây dựng cấu trúc gói tin (packet.py), bộ suy hao mạng (lossy.py), ClientAgent, Web Server mini bằng raw socket HTTP/1.1, giao diện Web UI hiển thị tiến trình file, module truyền file SHA-256 và bộ test tự động pytest.</div>
+          <div class="team-tags">
+            <span class="tag-sm">Raw HTTP Server</span>
+            <span class="tag-sm">Web UI (Vanilla JS)</span>
+            <span class="tag-sm">Lossy Simulator</span>
+            <span class="tag-sm">pytest suite</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TIMELINE SECTION -->
+    <section class="section" id="timeline">
+      <div class="section-head">
+        <div>
+          <span class="section-title">Lộ trình Phát triển và Mốc Tích hợp theo Giai đoạn</span>
+          <span class="section-sub">— Phối hợp song song, chuyển giao đúng mốc kỹ thuật</span>
+        </div>
+      </div>
+
+      <div class="timeline-card">
+        <table class="tl-table">
+          <thead>
+            <tr>
+              <th style="width: 140px;">Giai đoạn</th>
+              <th style="width: 180px;">Tên giai đoạn</th>
+              <th>Nội dung thực hiện chính</th>
+              <th style="width: 270px;">Mốc bàn giao then chốt</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Giai đoạn 0</strong></td>
+              <td>Hợp đồng chung nhóm</td>
+              <td>Thống nhất đặc tả Header 27B, 11 thông điệp ứng dụng, Stream ID, config tập trung.</td>
+              <td><span class="phase-chip" style="background:#fef3c7;color:#92400e;">Cuối Giai đoạn 0</span> Bàn giao <code>fake.py</code> để B &amp; C bắt đầu code song song.</td>
+            </tr>
+            <tr>
+              <td><strong>Giai đoạn 1</strong></td>
+              <td>Triển khai độc lập từng tầng</td>
+              <td>A: UDP Endpoint + Stop-and-Wait.<br>B: Kênh TCP login + PBKDF2.<br>C: <code>packet.py</code>, <code>lossy.py</code>, ClientAgent CLI.</td>
+              <td><span class="phase-chip" style="background:#dbeafe;color:#1e40af;">Cuối GĐ 1 (Mốc M1)</span> A hoàn thành Stop-and-Wait trên UDP thật. B &amp; C chuyển từ Fake sang Real.</td>
+            </tr>
+            <tr>
+              <td><strong>Giai đoạn 2</strong></td>
+              <td>Tích hợp &amp; Tính năng nâng cao</td>
+              <td>A: Sliding Window + Multi-stream.<br>B: User Registry + Cipher AES-GCM + Router.<br>C: HTTP Server thô + Web UI + Truyền file nhị phân.</td>
+              <td><span class="phase-chip" style="background:#ede9fe;color:#5b21b6;">Cuối Giai đoạn 2</span> Chat thời gian thực và gửi nhận file trên trình duyệt ổn định.</td>
+            </tr>
+            <tr>
+              <td><strong>Giai đoạn 3</strong></td>
+              <td>Chịu lỗi &amp; Kiểm thử toàn diện</td>
+              <td>A: Congestion Control (Reno/CUBIC).<br>B: File Relay back-pressure + chống sập.<br>C: Bộ kiểm thử pytest cho mạng xấu + Báo cáo PDF.</td>
+              <td><span class="phase-chip" style="background:#d1fae5;color:#065f46;">Cuối Giai đoạn 3</span> Đạt toàn bộ 10/10 tiêu chí Rubric, hoàn tất bộ test và báo cáo.</td>
+            </tr>
+            <tr>
+              <td><strong>Giai đoạn 4</strong></td>
+              <td>Đóng gói &amp; Nghiệm thu</td>
+              <td>Kiểm tra toàn diện trên máy sạch, đóng băng mã nguồn nội bộ và bàn giao sản phẩm.</td>
+              <td><span class="phase-chip" style="background:#fee2e2;color:#991b1b;">Cuối Giai đoạn 4</span> Hoàn tất nộp bài chính thức.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- TASKS SECTION -->
+    <section class="section" id="tasks">
+      <div class="section-head">
+        <div>
+          <span class="section-title">Danh mục Nhiệm vụ Kỹ thuật</span>
+          <span class="section-sub">— 35 đầu việc chi tiết có tiêu chí nghiệm thu</span>
+        </div>
+        <span class="section-counter" id="filter-count">Hiển thị: 35 / 35</span>
+      </div>
+
+      <!-- FILTER TOOLBAR -->
+      <div class="filter-bar">
+        <div class="filter-group">
+          <span style="font-size:12px;font-weight:600;color:var(--text-muted);margin-right:4px;">Người phụ trách:</span>
+          <button class="filter-btn active" data-filter="all" onclick="filterTasks('all', this)">Tất cả</button>
+          <button class="filter-btn" data-filter="G" onclick="filterTasks('G', this)">Nhóm (G)</button>
+          <button class="filter-btn" data-filter="A" onclick="filterTasks('A', this)">Người A</button>
+          <button class="filter-btn" data-filter="B" onclick="filterTasks('B', this)">Người B</button>
+          <button class="filter-btn" data-filter="C" onclick="filterTasks('C', this)">Người C</button>
+        </div>
+        <div class="filter-group">
+          <span style="font-size:12px;font-weight:600;color:var(--text-muted);margin-right:4px;">Trạng thái:</span>
+          <button class="filter-btn active" data-status="all" onclick="filterStatus('all', this)">Tất cả</button>
+          <button class="filter-btn" data-status="todo" onclick="filterStatus('todo', this)">To Do</button>
+          <button class="filter-btn" data-status="wip" onclick="filterStatus('wip', this)">In Progress</button>
+          <button class="filter-btn" data-status="done" onclick="filterStatus('done', this)">Done</button>
+        </div>
+        <div>
+          <input type="text" class="search-input" id="search-box" placeholder="Tìm kiếm nhiệm vụ..." oninput="searchTasks(this.value)"/>
+        </div>
+      </div>
+
+      <div class="task-list" id="task-container">
+        <!-- Rendered by JavaScript -->
+      </div>
+    </section>
+
+    <!-- RUBRIC SECTION -->
+    <section class="section" id="rubric">
+      <div class="section-head">
+        <div>
+          <span class="section-title">Đối chiếu Thang điểm Đánh giá (Rubric)</span>
+          <span class="section-sub">— 10 điểm phân bổ chính xác theo 10 bước của đề</span>
+        </div>
+      </div>
+
+      <table class="rubric-table">
+        <thead>
+          <tr>
+            <th class="step-col">Bước</th>
+            <th>Nội dung tiêu chí đánh giá</th>
+            <th>Thành viên phụ trách</th>
+            <th>Các nhiệm vụ bảo đảm đạt điểm</th>
+            <th class="score-col">Điểm</th>
+          </tr>
+        </thead>
+        <tbody id="rubric-body">
+          <!-- Rendered by JavaScript -->
+        </tbody>
+      </table>
+    </section>
+
+  </div>
+</main>
+
+<footer>
+  <div class="container">
+    CO3093 - Network Application Development | Bảng kế hoạch kỹ thuật nhóm 3 người
+  </div>
+</footer>
+
+<script>
+/* ── TASK DATA (35 TASKS - DEADLINES BY PHASE) ── */
+const TASKS = [
+  {
+    "id": "G1",
+    "who": "A",
+    "group": "G",
+    "deadline": "Giai đoạn 0",
+    "title": "Đặc tả Cấu trúc Gói tin (Packet Header)",
+    "desc": "<p style=\"margin-bottom:6px;\">Định nghĩa chi tiết 11 trường trong Header 31 bytes cố định, thứ tự Big-Endian: <code>Version (1B)</code>, <code>Type (1B)</code>, <code>Flags (1B)</code>, <code>ConnID (4B)</code>, <code>StreamID (2B)</code>, <code>PktNum (4B)</code>, <code>Seq (4B)</code>, <code>Ack (4B)</code>, <code>Window (4B)</code>, <code>Length (2B)</code>, <code>Checksum (4B)</code>. Struct format: <code>'>BBBIHIIIIHI'</code>. Định nghĩa cấu trúc SACK trong payload của gói ACK: <code>[1B số dải][N x 8B: start_seq (4B) + end_seq (4B)]</code>.</p><ul style=\"margin-left:18px;margin-top:6px;margin-bottom:6px;\"><li style=\"margin-bottom:4px;\"><strong>Đơn vị:</strong> <code>Seq</code>, <code>Ack</code> và SACK tính theo <strong>số thứ tự gói</strong> (không theo byte), riêng cho từng stream. <code>Window</code> (rwnd) tính theo <strong>số gói</strong>, cùng đơn vị với <code>cwnd</code>. <code>Length</code> là số byte payload của <strong>gói này</strong> (sau mã hóa, gồm cả thẻ GCM 16B).</li><li style=\"margin-bottom:4px;\"><strong><code>PktNum</code>:</strong> bộ đếm gói tăng đơn điệu theo từng chiều của kết nối, bắt đầu từ 0, áp dụng cho <strong>mọi</strong> gói (DATA, ACK, Heartbeat, FIN). Mỗi lần gửi, kể cả gửi lại, đều lấy <code>PktNum</code> mới; gói gửi lại giữ nguyên <code>Seq</code>. <code>PktNum</code> dùng làm nonce AES-GCM (xem B6). Khi <code>PktNum</code> sắp chạm 2^32 thì đóng kết nối để đăng nhập lại.</li><li style=\"margin-bottom:4px;\"><strong>Checksum (CRC32):</strong> tính trên <code>header (với Checksum = 0) + payload đã mã hóa</code>, sau bước mã hóa. Bên nhận kiểm CRC trước rồi mới giải mã.</li></ul>",
+    "files": [
+      "docs/protocol.md"
+    ],
+    "criteria": [
+      "Bảng đặc tả chính xác offset từng trường, đơn vị và định dạng SACK được toàn đội xác nhận."
+    ]
+  },
+  {
+    "id": "G2",
+    "who": "B",
+    "group": "G",
+    "deadline": "Giai đoạn 0",
+    "title": "Chuẩn hóa Danh mục Thông điệp Ứng dụng (11 loại)",
+    "desc": "<p style=\"margin-bottom:6px;\">Đặc tả cấu trúc JSON của 11 thông điệp:</p><ul style=\"margin-left:18px;margin-top:6px;margin-bottom:6px;\"><li style=\"margin-bottom:4px;\">TCP login: <code>KEY_EXCHANGE</code>, <code>REGISTER</code>, <code>LOGIN</code>, <code>AUTH_OK</code>, <code>AUTH_FAIL</code>.</li><li style=\"margin-bottom:4px;\">UDP Stream 1: <code>MSG_BCAST</code>, <code>MSG_DM</code>, <code>USER_LIST</code>, <code>ERROR</code>, <code>FILE_OFFER</code>, <code>FILE_ACCEPT</code>, <code>FILE_DONE</code>.</li><li style=\"margin-bottom:4px;\">UDP Stream 3+: <code>FILE_CHUNK</code> (dữ liệu nhị phân).</li><li style=\"margin-bottom:4px;\">Trường nhị phân trong JSON (khóa công khai X25519 32B trong <code>KEY_EXCHANGE</code>, chữ ký nếu có) mã hóa <strong>base64</strong>. JSON gửi bằng <code>json.dumps(..., ensure_ascii=False, separators=(',', ':'))</code>, mã hóa UTF-8; mọi độ dài tính theo <strong>byte</strong> (<code>len(s.encode())</code>), không theo số ký tự.</li></ul>",
+    "files": [
+      "docs/protocol.md"
+    ],
+    "criteria": [
+      "Danh mục 11 thông điệp có ví dụ JSON minh họa rõ ràng, ghi rõ kênh truyền tương ứng."
+    ]
+  },
+  {
+    "id": "G3",
+    "who": "A",
+    "group": "G",
+    "deadline": "Giai đoạn 0",
+    "title": "Quy ước Stream ID và Đóng khung Thông điệp (Framing)",
+    "desc": "<p style=\"margin-bottom:6px;\">Quy định Stream ID (0: Control, 1: Chat/Negotiation, 2: Heartbeat, 3+: File Chunks). Định nghĩa cơ chế đóng khung: 2 byte độ dài Big-Endian đi trước mỗi payload JSON trên Stream 1 và chunk nhị phân trên Stream 3+. Stream 2 không dùng framing.</p><ul style=\"margin-left:18px;margin-top:6px;margin-bottom:6px;\"><li style=\"margin-bottom:4px;\"><strong>Chốt mô hình:</strong> Stream 0, 1, 3+ là <strong>dòng byte tin cậy, đúng thứ tự</strong> (giống TCP). Vì vậy cần framing: một thông điệp có thể dài hơn một gói (ví dụ <code>USER_LIST</code> nhiều user) và bị cắt ra nhiều gói. Phân biệt rõ: <code>Length</code> trong header = độ dài payload của <strong>một gói</strong>; tiền tố 2B framing = độ dài của <strong>một thông điệp</strong> (có thể trải qua nhiều gói).</li><li style=\"margin-bottom:4px;\"><strong>Stream 2 (Heartbeat):</strong> best-effort. Gói vẫn có <code>Seq</code> tăng dần nhưng <strong>không gửi ACK, không gửi lại</strong>; bên nhận chỉ cập nhật <code>last_seen</code>.</li></ul>",
+    "files": [
+      "docs/protocol.md"
+    ],
+    "criteria": [
+      "Quy chuẩn framing thống nhất để bên nhận tách gói không bị dính thông điệp."
+    ]
+  },
+  {
+    "id": "G4",
+    "who": "B",
+    "group": "G",
+    "deadline": "Giai đoạn 0",
+    "title": "Cấu hình Tập trung Hệ thống (Central Config)",
+    "desc": "<p style=\"margin-bottom:6px;\">Định nghĩa toàn bộ hằng số trong <code>shared/config.py</code>: cổng (TCP 9000, UDP 9001, HTTP mặc định 8080 — ghi đè được bằng tham số dòng lệnh <code>--http-port</code>), kích thước chunk (1000B), timeout (<code>IDLE_TIMEOUT = HEARTBEAT_TIMEOUT = 15</code>), chu kỳ heartbeat (<code>HEARTBEAT_INTERVAL = 5</code>), kích thước cửa sổ (<code>WINDOW_SIZE = 16</code>), <code>INITIAL_RTO = 2</code>, <code>MAX_RTO = 60</code>, số lần gửi lại tối đa (<code>MAX_RETRIES = 15</code>).</p>",
+    "files": [
+      "shared/config.py"
+    ],
+    "criteria": [
+      "Không còn giá trị hardcode trong mã nguồn, biến timeout thống nhất tuyệt đối."
+    ]
+  },
+  {
+    "id": "G5",
+    "who": "A",
+    "group": "G",
+    "deadline": "Cuối Giai đoạn 0 (bàn giao trước khi bước vào Giai đoạn 1)",
+    "title": "Bản Giả lập Giao thức Bộ nhớ (Fake Transport API)",
+    "desc": "<p style=\"margin-bottom:6px;\">Cài đặt <code>FakeConnection</code> và <code>FakeStream</code> sử dụng <code>asyncio.Queue</code> nội bộ. Cung cấp API: <code>open_stream(id)</code>, <code>await stream.send(data)</code>, <code>await stream.recv()</code>, <code>conn.on_disconnect(callback)</code>. Định nghĩa interface <code>Cipher</code> và lớp mặc định <code>NullCipher</code> để sẵn sàng gắn mã hóa sau này.</p>",
+    "files": [
+      "transport/fake.py"
+    ],
+    "criteria": [
+      "Người B và C import được ngay, gửi nhận thông điệp qua RAM thông suốt để bắt đầu code tầng trên."
+    ]
+  },
+  {
+    "id": "G6",
+    "who": "B+C",
+    "group": "G",
+    "deadline": "Giai đoạn 0",
+    "title": "Thiết kế Sơ đồ Trạng thái (State Diagrams)",
+    "desc": "<ul style=\"margin-left:18px;margin-top:6px;margin-bottom:6px;\"><li style=\"margin-bottom:4px;\">B vẽ sơ đồ chu trình đăng nhập: DISCONNECTED -> KEY_EXCHANGE -> AUTH -> UDP_HELLO -> ONLINE.</li><li style=\"margin-bottom:4px;\">C vẽ sơ đồ truyền tệp: IDLE -> OFFER -> ACCEPT -> CHUNKS -> DONE/ABORTED.</li></ul>",
+    "files": [
+      "docs/diagrams/login_state.png",
+      "docs/diagrams/file_transfer_state.png"
+    ],
+    "criteria": [
+      "Hình vẽ trực quan chứa đầy đủ các nhánh lỗi và thời gian chờ (timeout)."
+    ]
+  },
+  {
+    "id": "G7",
+    "who": "C",
+    "group": "G",
+    "deadline": "Giai đoạn 0",
+    "title": "Khởi tạo Repo Git và Danh mục Quản lý Công việc",
+    "desc": "<p style=\"margin-bottom:6px;\">Khởi tạo Git repository, file <code>.gitignore</code>, cấu trúc thư mục chuẩn (<code>shared/</code>, <code>transport/</code>, <code>server/</code>, <code>client/</code>, <code>ui/</code>, <code>tests/</code>, <code>docs/</code>), tạo GitHub Issues cho toàn bộ 35 task của dự án để theo dõi tiến độ chung.</p>",
+    "files": [
+      "Cấu trúc dự án",
+      ".gitignore",
+      "README.md"
+    ],
+    "criteria": [
+      "Máy chủ chạy được lệnh <code>python server/main.py</code> in log khởi động thành công."
+    ]
+  },
+  {
+    "id": "A1",
+    "who": "",
+    "group": "A",
+    "deadline": "Giai đoạn 1",
+    "title": "Điểm cuối UDP Bất đồng bộ (UDP Endpoint)",
+    "desc": "<p style=\"margin-bottom:6px;\">Dùng <code>asyncio.DatagramProtocol</code> xây dựng <code>UDPEndpoint</code>. Lắng nghe socket UDP, phân tích gói tin dựa trên <code>shared/packet.py</code>, định tuyến gói đến đối tượng <code>Connection</code> tương ứng theo <code>ConnID</code>. Tự động tạo kết nối mới khi nhận gói hợp lệ.</p>",
+    "files": [
+      "transport/udp_endpoint.py"
+    ],
+    "criteria": [
+      "Server phân biệt và định tuyến chính xác gói tin từ 3 Client khác nhau gửi tới đồng thời."
+    ]
+  },
+  {
+    "id": "A2",
+    "who": "",
+    "group": "A",
+    "deadline": "Cuối Giai đoạn 1 (Mốc M1)",
+    "title": "Truyền tin Tin cậy Stop-and-Wait trên UDP Thật (Mốc M1)",
+    "desc": "<p style=\"margin-bottom:6px;\">Cài đặt thuật toán Stop-and-Wait: Gửi 1 gói tin, chờ ACK; nếu hết thời gian RTO mà chưa có ACK thì truyền lại (tối đa <code>MAX_RETRIES = 15</code> lần; quá số lần thì báo ngắt kết nối). Bỏ qua các gói tin trùng lặp (duplicate seq).</p><ul style=\"margin-left:18px;margin-top:6px;margin-bottom:6px;\"><li style=\"margin-bottom:4px;\">*Lý do chọn 15:* với 20% mất gói ở cả hai chiều, một lần gửi thành công với xác suất 0,8 × 0,8 = 0,64. Nếu chỉ cho 5 lần, xác suất một gói thất bại hẳn ≈ 0,36⁶ ≈ 0,2%; 100KB ≈ 100 gói nên khoảng 20% số lần chạy test sẽ fail. Với 15 lần, xác suất này ≈ 0,36¹⁶ ≈ 10⁻⁷, coi như không xảy ra.</li></ul>",
+    "files": [
+      "transport/connection.py",
+      "transport/stream.py"
+    ],
+    "criteria": [
+      "Truyền thành công 100KB dữ liệu qua <code>LossyTransport</code> với tỷ lệ mất gói 20% mà không bị hỏng hoặc mất dữ liệu. B và C bắt đầu chuyển sang dùng transport thật từ mốc M1."
+    ]
+  },
+  {
+    "id": "A3",
+    "who": "",
+    "group": "A",
+    "deadline": "Giai đoạn 2",
+    "title": "Cửa sổ Trượt (Sliding Window) và Selective Repeat",
+    "desc": "<p style=\"margin-bottom:6px;\">Nâng cấp từ Stop-and-Wait lên Sliding Window với kích thước cửa sổ W=16. Cho phép gửi đồng thời 16 gói tin chưa có ACK. Phía nhận lưu tạm thời các gói tin đến lệch thứ tự (out-of-order buffer), gửi danh sách SACK trong payload của gói ACK. Phía gửi đọc SACK và chỉ gửi lại duy nhất các gói tin bị thiếu. Tích hợp công thức ước lượng RTO động: <code>RTO = SRTT + 4 * RTTVAR</code>, giới hạn trong <code>[INITIAL_RTO… MAX_RTO]</code> khi chưa có mẫu.</p><ul style=\"margin-left:18px;margin-top:6px;margin-bottom:6px;\"><li style=\"margin-bottom:4px;\"><strong>Karn's algorithm:</strong> không lấy mẫu RTT từ gói đã gửi lại (không biết ACK trả lời cho lần gửi nào). Mỗi lần timeout thì <code>RTO = min(2 × RTO, MAX_RTO)</code>.</li><li style=\"margin-bottom:4px;\"><strong>Định nghĩa \"duplicate ACK\" (dùng ở A6):</strong> gói ACK có cumulative <code>Ack</code> <strong>không tăng</strong> so với ACK trước, nhưng SACK báo thêm khoảng mới đã nhận.</li><li style=\"margin-bottom:4px;\">Mỗi gói chưa được ACK có một timer riêng bằng <code>loop.call_later(RTO, ...)</code>; khi ACK đến thì <code>handle.cancel()</code>.</li></ul>",
+    "files": [
+      "transport/window.py",
+      "transport/connection.py"
+    ],
+    "criteria": [
+      "Truyền thành công 1MB dữ liệu qua mạng mô phỏng (20% mất gói + 10% xáo trộn thứ tự + 5% lặp gói) với toàn vẹn dữ liệu 100%. Tốc độ truyền tải nhanh hơn Stop-and-Wait ít nhất 5 lần, đo trong cùng điều kiện cố định: 1MB, <code>delay_ms = 50</code>, <code>loss_pct = 0</code>, cùng một máy."
+    ]
+  },
+  {
+    "id": "A4",
+    "who": "",
+    "group": "A",
+    "deadline": "Giai đoạn 2",
+    "title": "Đa luồng Độc lập (Multi-streaming) Khử Nghẽn HoL",
+    "desc": "<p style=\"margin-bottom:6px;\">Duy trì số thứ tự (seq), bộ đệm gửi/nhận riêng biệt cho từng Stream ID. Phía gửi lập lịch theo <strong>độ ưu tiên</strong>: Stream 0 (control) > Stream 1 (chat) > Stream 2 (heartbeat) > Stream 3+ (file). Mỗi lượt gửi, stream có ưu tiên cao hơn và có gói chờ thì được gửi trước; các stream file cùng mức ưu tiên luân phiên Round-Robin với nhau.</p><ul style=\"margin-left:18px;margin-top:6px;margin-bottom:6px;\"><li style=\"margin-bottom:4px;\">*Lý do không dùng Round-Robin thuần:* <code>cwnd</code> tính chung cho cả kết nối (A6). Khi stream file mất nhiều gói, <code>cwnd</code> co lại; nếu chia lượt đều, chat phải chờ lượt trong cửa sổ hẹp mà file đang chiếm, nên vẫn bị chậm. Chat ít và nhỏ nên ưu tiên chat gần như không làm chậm file.</li></ul>",
+    "files": [
+      "transport/stream.py",
+      "transport/multiplex.py"
+    ],
+    "criteria": [
+      "Kiểm thử HoL: Cố tình gây mất gói 50% trên Stream 3 (đang truyền file, dùng tham số <code>stream_loss</code> của <code>LossyTransport</code>, xem C2), kiểm tra thấy tin nhắn chat trên Stream 1 vẫn được nhận tức thời với độ trễ dưới 200ms."
+    ]
+  },
+  {
+    "id": "A5",
+    "who": "",
+    "group": "A",
+    "deadline": "Cuối Giai đoạn 2",
+    "title": "Điều khiển Luồng (Flow Control qua Receive Window)",
+    "desc": "<p style=\"margin-bottom:6px;\">Phía nhận tính toán dung lượng bộ đệm còn trống của từng stream (tính theo <strong>số gói</strong>) và ghi vào trường <code>Window</code> (rwnd) trong header gói ACK. Phía gửi duy trì <code>effective_window = min(cwnd, rwnd)</code>. Nếu <code>rwnd == 0</code>, phía gửi tạm ngừng truyền và gửi gói thăm dò (probe packet) mỗi giây một lần.</p>",
+    "files": [
+      "transport/flow.py",
+      "transport/connection.py"
+    ],
+    "criteria": [
+      "Khi máy nhận giả lập xử lý chậm (sleep 0.1s/gói), máy gửi tự động hãm tốc độ, không xảy ra hiện tượng tràn bộ đệm làm rớt gói phía nhận."
+    ]
+  },
+  {
+    "id": "A6",
+    "who": "",
+    "group": "A",
+    "deadline": "Giai đoạn 3",
+    "title": "Kiểm soát Tắc nghẽn (Congestion Control: Reno & CUBIC)",
+    "desc": "<p style=\"margin-bottom:6px;\">Quản lý cửa sổ tắc nghẽn <code>cwnd</code> ở cấp độ toàn kết nối (Connection-level):</p><ul style=\"margin-left:18px;margin-top:6px;margin-bottom:6px;\"><li style=\"margin-bottom:4px;\">Khởi đầu với Slow Start: <code>cwnd = 1</code>, nhân đôi sau mỗi RTT cho đến khi chạm <code>ssthresh</code>.</li><li style=\"margin-bottom:4px;\">Chuyển sang Né tắc nghẽn (AIMD): tăng <code>+1/cwnd</code> cho mỗi ACK nhận được.</li><li style=\"margin-bottom:4px;\">Xử lý mất gói (định nghĩa duplicate ACK ở A3):</li><li style=\"margin-bottom:4px;\">Nhận 3 ACK trùng lặp -> Fast Retransmit gói thiếu, rồi <code>ssthresh = max(cwnd / 2, 2)</code>; <code>cwnd = ssthresh + 3</code> (Fast Recovery, không reset về 1). Khi có ACK mới thì <code>cwnd = ssthresh</code>.</li><li style=\"margin-bottom:4px;\">Timeout -> <strong>trước tiên</strong> <code>ssthresh = max(cwnd / 2, 2)</code>, <strong>sau đó</strong> <code>cwnd = 1</code>. Thứ tự này bắt buộc: nếu đặt <code>cwnd = 1</code> trước thì <code>ssthresh</code> chỉ còn 0,5.</li><li style=\"margin-bottom:4px;\">Triển khai CUBIC theo yêu cầu đề bài. Xuất lịch sử biến thiên <code>cwnd</code> ra tệp CSV để vẽ biểu đồ cho báo cáo.</li></ul>",
+    "files": [
+      "transport/congestion.py"
+    ],
+    "criteria": [
+      "Biểu đồ <code>cwnd</code> vẽ ra dạng răng cưa (sawtooth) chuẩn mực của giao thức điều khiển tắc nghẽn kinh điển, hệ thống duy trì thông lượng ổn định."
+    ]
+  },
+  {
+    "id": "A7",
+    "who": "",
+    "group": "A",
+    "deadline": "Giai đoạn 3",
+    "title": "Đóng Kết nối (FIN Handshake) và Ngắt kết nối do Quá hạn",
+    "desc": "<ul style=\"margin-left:18px;margin-top:6px;margin-bottom:6px;\"><li style=\"margin-bottom:4px;\">Đóng chủ động: Gửi gói tin FIN, chờ gói phản hồi FIN-ACK rồi giải phóng tài nguyên.</li><li style=\"margin-bottom:4px;\">Ngắt thụ động (sự cố mạng): Theo dõi <code>IDLE_TIMEOUT = 15s</code>. Nếu quá 15 giây không nhận được bất kỳ dữ liệu hay gói Heartbeat nào, tự động đóng phiên và kích hoạt callback <code>on_disconnect</code>.</li></ul>",
+    "files": [
+      "transport/connection.py"
+    ],
+    "criteria": [
+      "Tắt đột ngột Client bằng lệnh buộc dừng (kill -9), máy chủ tự động phát hiện và dọn sạch phiên kết nối trong khoảng 15–20 giây (15 giây timeout cộng tối đa một chu kỳ kiểm tra)."
+    ]
+  },
+  {
+    "id": "A8",
+    "who": "",
+    "group": "A",
+    "deadline": "Hoàn thành trong Giai đoạn 3",
+    "title": "Soạn thảo Báo cáo Đặc tả Tầng Giao vận",
+    "desc": "<p style=\"margin-bottom:6px;\">Soạn thảo tài liệu kỹ thuật chi tiết: sơ đồ cấu trúc Packet Header, bảng mã trạng thái, nguyên lý hoạt động của Sliding Window + SACK, thuật toán RTO động, phân tích cơ chế chống tắc nghẽn kèm biểu đồ <code>cwnd</code>, và danh mục các lỗi kỹ thuật thực tế đã gặp và cách khắc phục.</p>",
+    "files": [
+      "docs/protocol_spec.md"
+    ],
+    "criteria": [
+      "Tài liệu đầy đủ, minh họa rõ ràng để đưa vào báo cáo kỹ thuật nộp giảng viên."
+    ]
+  },
+  {
+    "id": "B1",
+    "who": "",
+    "group": "B",
+    "deadline": "Giai đoạn 1",
+    "title": "Khung Thực thi Máy chủ Bất đồng bộ (Asyncio Server Core)",
+    "desc": "<p style=\"margin-bottom:6px;\">Xây dựng điểm vào <code>server/main.py</code>. Cấu hình logging chuyên nghiệp, nạp tập trung <code>shared/config.py</code>. Dùng <code>asyncio.gather()</code> điều phối chạy đồng thời TCP Server (đăng nhập) và UDP Server (truyền tải dữ liệu). HTTP Server <strong>không</strong> chạy ở máy chủ mà chạy trong client agent (xem C4). Đón bắt tín hiệu <code>SIGINT</code> (Ctrl+C) để đóng kết nối an toàn.</p><ul style=\"margin-left:18px;margin-top:6px;margin-bottom:6px;\"><li style=\"margin-bottom:4px;\">Quy tắc chung cho toàn bộ code asyncio: <strong>không được có lệnh chặn</strong> trong event loop (không <code>time.sleep</code>, không tính PBKDF2 hay đọc file lớn trực tiếp). Việc tốn CPU đẩy sang <code>loop.run_in_executor</code>; chờ dùng <code>await asyncio.sleep</code>. Khi chạy test bật <code>asyncio.run(main(), debug=True)</code> để event loop cảnh báo bước nào chạy quá 0,1 giây.</li></ul>",
+    "files": [
+      "server/main.py"
+    ],
+    "criteria": [
+      "Khởi chạy máy chủ in đầy đủ cổng lắng nghe, tắt máy chủ dọn sạch tài nguyên không văng lỗi."
+    ]
+  },
+  {
+    "id": "B2",
+    "who": "",
+    "group": "B",
+    "deadline": "Giai đoạn 1",
+    "title": "Kênh TCP Bắt tay, Đóng khung và Trao đổi Khóa X25519",
+    "desc": "<p style=\"margin-bottom:6px;\">Thiết lập máy chủ TCP trên cổng 9000. Xây dựng hàm đọc/ghi thông điệp có tiền tố độ dài 4 byte: <code>read_message(reader)</code>, <code>write_message(writer, msg)</code>. Tạo cặp khóa X25519: gửi khóa công khai của server cho client, nhận khóa công khai của client, tính toán khóa bí mật chung. Dùng hàm dẫn xuất HKDF để tạo ra <strong>4 khóa</strong> phiên AES-256 đối xứng, mỗi khóa một nhãn <code>info</code> riêng: <code>tcp_c2s</code>, <code>tcp_s2c</code> (cho kênh TCP đăng nhập) và <code>udp_c2s</code>, <code>udp_s2c</code> (cho UDP). Tách khóa TCP và UDP để hai kênh không bao giờ trùng nonce.</p><ul style=\"margin-left:18px;margin-top:6px;margin-bottom:6px;\"><li style=\"margin-bottom:4px;\">Nonce trên kênh TCP: bộ đếm thông điệp theo từng chiều (4B Big-Endian + 8 byte 0), tăng 1 sau mỗi thông điệp.</li><li style=\"margin-bottom:4px;\">*(Tùy chọn, chống MITM)* Server có một cặp khóa danh tính Ed25519 dài hạn; khóa công khai được ghim sẵn trong config của client. Server ký lên khóa công khai X25519 của phiên; client kiểm chữ ký, sai thì ngắt kết nối. Nếu không làm thì ghi rõ hạn chế này trong báo cáo (B11).</li></ul>",
+    "files": [
+      "server/tcp_server.py",
+      "shared/crypto.py"
+    ],
+    "criteria": [
+      "Quá trình bắt tay trao đổi khóa diễn ra thành công trong < 100ms trước khi thực hiện bước xác thực."
+    ]
+  },
+  {
+    "id": "B3",
+    "who": "",
+    "group": "B",
+    "deadline": "Giai đoạn 1",
+    "title": "Xác thực Người dùng An toàn (PBKDF2 Authentication)",
+    "desc": "<p style=\"margin-bottom:6px;\">Mọi thông điệp đăng ký/đăng nhập đều đi qua kênh TCP đã được mã hóa bằng khóa <code>tcp_c2s</code> / <code>tcp_s2c</code> sinh ở B2. Băm mật khẩu bằng <code>hashlib.pbkdf2_hmac</code> với thuật toán SHA-256, muối ngẫu nhiên 16 bytes và 100,000 vòng lặp. Lưu trữ trong <code>users.json</code>.</p><ul style=\"margin-left:18px;margin-top:6px;margin-bottom:6px;\"><li style=\"margin-bottom:4px;\"><strong>PBKDF2 tốn khoảng 50–100ms CPU mỗi lần, phải chạy ngoài event loop:</strong> <code>await loop.run_in_executor(None, hashlib.pbkdf2_hmac, 'sha256', pw, salt, 100_000)</code>. Gọi trực tiếp sẽ làm treo mọi client khác trong lúc băm. So sánh hash bằng <code>hmac.compare_digest</code>.</li><li style=\"margin-bottom:4px;\"><code>REGISTER</code>: Kiểm tra trùng tên, lưu salt + hash, phản hồi kết quả.</li><li style=\"margin-bottom:4px;\"><code>LOGIN</code>: Kiểm tra hash; nếu đúng sinh <code>conn_id</code> là số nguyên ngẫu nhiên 32-bit (<code>secrets.randbits(32)</code>, khớp với trường <code>ConnID</code> 4B trong header), kiểm tra không trùng với phiên đang hoạt động, rồi trả về cho client. Nếu tài khoản đang online ở nơi khác, thực hiện ngắt phiên cũ.</li></ul>",
+    "files": [
+      "server/auth.py",
+      "users.json"
+    ],
+    "criteria": [
+      "Thử nghiệm đăng nhập sai mật khẩu bị từ chối; đúng mật khẩu nhận <code>conn_id</code>. Mật khẩu tuyệt đối không bao giờ xuất hiện dạng thô trên mạng và trong tệp lưu trữ."
+    ]
+  },
+  {
+    "id": "B4",
+    "who": "",
+    "group": "B",
+    "deadline": "Cuối Giai đoạn 1 (đồng bộ với mốc M1)",
+    "title": "Liên kết Địa chỉ UDP với Tài khoản (UDP Binding)",
+    "desc": "<p style=\"margin-bottom:6px;\">Sau khi nhận <code>conn_id</code> qua TCP, client gửi gói UDP HELLO chứa <code>conn_id</code> đến cổng UDP 9001. Máy chủ xác thực <code>conn_id</code>, lưu cặp ánh xạ <code>conn_id -> (Client_IP, Client_UDP_Port)</code> vào bộ nhớ. Sau khi liên kết UDP thành công, máy chủ chủ động đóng kết nối TCP tương ứng để tiết kiệm cổng kết nối.</p>",
+    "files": [
+      "server/udp_bind.py",
+      "server/tcp_server.py"
+    ],
+    "criteria": [
+      "Log máy chủ ghi nhận: Client chuyển đổi thành công từ kênh xác thực TCP sang kênh vận chuyển UDP thời gian thực; kết nối TCP đóng êm đẹp."
+    ]
+  },
+  {
+    "id": "B5",
+    "who": "",
+    "group": "B",
+    "deadline": "Giai đoạn 2",
+    "title": "Quản lý Trạng thái Người dùng Trực tuyến (User Registry)",
+    "desc": "<p style=\"margin-bottom:6px;\">Xây dựng bảng theo dõi người dùng trực tuyến <code>{username: {udp_addr, last_seen, conn_id}}</code>. Cập nhật <code>last_seen</code> mỗi khi nhận gói tin từ client hoặc gói Heartbeat (Stream 2). Chạy tác vụ nền (background task) định kỳ mỗi 5 giây quét bảng: Người dùng có <code>now - last_seen > 15s</code> sẽ bị đánh dấu offline và loại bỏ. Khi danh sách người dùng thay đổi, tự động phát sóng thông điệp <code>USER_LIST</code> qua Stream 1 đến toàn bộ client đang online. Đăng ký callback <code>on_disconnect</code> với tầng transport của Người A để loại bỏ ngay lập tức người dùng khi transport phát hiện ngắt kết nối.</p>",
+    "files": [
+      "server/registry.py"
+    ],
+    "criteria": [
+      "Tắt đột ngột một client, trong khoảng 15–20 giây (15 giây timeout cộng tối đa 5 giây chu kỳ quét) toàn bộ các client khác nhận được bản tin cập nhật danh sách người dùng mới mà không còn tên client vừa thoát. Client thoát bình thường (gửi FIN) thì cập nhật gần như ngay lập tức qua <code>on_disconnect</code>."
+    ]
+  },
+  {
+    "id": "B6",
+    "who": "",
+    "group": "B",
+    "deadline": "Giai đoạn 2",
+    "title": "Cài đặt Module Mã hóa Giao vận (Cipher AES-256-GCM)",
+    "desc": "<p style=\"margin-bottom:6px;\">Cài đặt lớp <code>AESGCMCipher</code> kế thừa interface <code>Cipher</code> của tầng transport (thay thế cho <code>NullCipher</code>). Thực hiện mã hóa/giải mã phần tải trọng (payload) bằng thuật toán AES-256-GCM:</p><ul style=\"margin-left:18px;margin-top:6px;margin-bottom:6px;\"><li style=\"margin-bottom:4px;\">Khóa mã hóa: Sử dụng <code>udp_c2s</code> và <code>udp_s2c</code> sinh từ HKDF ở bước B2. Hai chiều dùng hai khóa khác nhau nên hai chiều có thể dùng cùng giá trị <code>PktNum</code> mà không xung đột.</li><li style=\"margin-bottom:4px;\">Vector khởi tạo (Nonce 12 bytes): <code>PktNum (4B BE) + 8 bytes số 0</code>. <strong>Không dùng <code>stream_id + seq</code></strong>: khi gửi lại, <code>seq</code> giữ nguyên nhưng header (Ack, Window, Flags) có thể đã đổi, tức cùng nonce mà khác AAD → lộ khóa xác thực GCM, kẻ gian giả mạo được gói. Gói ACK và gói DATA cùng stream cũng có thể trùng <code>seq</code>. <code>PktNum</code> tăng sau mỗi lần gửi nên không bao giờ lặp lại trong một chiều.</li><li style=\"margin-bottom:4px;\">Dữ liệu xác thực bổ sung (AAD): Sử dụng Header 31 bytes của gói tin <strong>với trường Checksum = 0</strong> làm AAD, đảm bảo nếu kẻ gian can thiệp sửa đổi trường nào trong header thì quá trình giải mã tại máy nhận sẽ lập tức báo lỗi xác thực.</li><li style=\"margin-bottom:4px;\">Thứ tự xử lý khi gửi: (1) dựng header với Checksum = 0 → (2) mã hóa payload với AAD là header đó → (3) tính CRC32 trên header + ciphertext → (4) ghi CRC vào trường Checksum. Khi nhận làm ngược lại: kiểm CRC → đặt Checksum = 0 → giải mã.</li><li style=\"margin-bottom:4px;\"><strong>Mọi gói sau handshake đều đi qua <code>Cipher</code></strong>, kể cả gói ACK (có SACK), Heartbeat và FIN. Nếu ACK không được niêm phong, kẻ gian có thể giả ACK khiến bên gửi tưởng gói đã đến.</li><li style=\"margin-bottom:4px;\">Interface: <code>encrypt(nonce, plaintext, aad) -> bytes</code> và <code>decrypt(nonce, ciphertext, aad) -> bytes</code> (ném lỗi khi thẻ sai).</li></ul>",
+    "files": [
+      "shared/crypto.py",
+      "transport/cipher.py"
+    ],
+    "criteria": [
+      "Dùng phần mềm Wireshark bắt gói tin trên cổng 9001: Toàn bộ dữ liệu hiển thị dạng ngẫu nhiên, không thể đọc được nội dung chat hoặc file; cố tình chỉnh sửa 1 bit trong header dẫn đến gói tin bị từ chối giải mã."
+    ]
+  },
+  {
+    "id": "B7",
+    "who": "",
+    "group": "B",
+    "deadline": "Cuối Giai đoạn 2",
+    "title": "Định tuyến Tin nhắn Văn bản (Broadcast & Direct Message)",
+    "desc": "<p style=\"margin-bottom:6px;\">Tiếp nhận thông điệp qua UDP Stream 1.</p><ul style=\"margin-left:18px;margin-top:6px;margin-bottom:6px;\"><li style=\"margin-bottom:4px;\"><code>MSG_BCAST</code>: Đóng gói và chuyển tiếp đến Stream 1 của tất cả người dùng đang trực tuyến (ngoại trừ người gửi).</li><li style=\"margin-bottom:4px;\"><code>MSG_DM</code>: Tra cứu địa chỉ người nhận trong User Registry, chuyển tiếp đến Stream 1 của người nhận. Nếu người nhận không online, gửi phản hồi <code>ERROR</code> (mã <code>USER_OFFLINE</code>) về cho người gửi.</li></ul>",
+    "files": [
+      "server/router.py"
+    ],
+    "criteria": [
+      "Thử nghiệm 3 client: Tin nhắn chung hiển thị trên tất cả máy, tin nhắn riêng chỉ duy nhất người nhận xem được, gửi tin cho người offline lập tức nhận thông báo lỗi."
+    ]
+  },
+  {
+    "id": "B8",
+    "who": "",
+    "group": "B",
+    "deadline": "Giai đoạn 3",
+    "title": "Trung chuyển Dữ liệu Tập tin (File Relay Engine)",
+    "desc": "<p style=\"margin-bottom:6px;\">Xử lý việc chuyển tiếp các thông điệp truyền tập tin giữa 2 client:</p><ul style=\"margin-left:18px;margin-top:6px;margin-bottom:6px;\"><li style=\"margin-bottom:4px;\">Thông điệp thỏa thuận (<code>FILE_OFFER</code>, <code>FILE_ACCEPT</code>, <code>FILE_DONE</code>): Chuyển tiếp qua Stream 1.</li><li style=\"margin-bottom:4px;\">Phân đoạn nhị phân (<code>FILE_CHUNK</code>): Chuyển tiếp qua Stream 3+ chuyên biệt cho phiên truyền đó.</li><li style=\"margin-bottom:4px;\">Kiểm soát luồng chống tràn bộ nhớ (Back-pressure): Chuyển tiếp ngay lập tức từng chunk nhận được từ bên gửi sang bên nhận; nếu hàng đợi gửi tới bên nhận bị đầy, tạm ngừng nhận tiếp từ bên gửi để tránh máy chủ phải buffer toàn bộ tập tin vào RAM.</li></ul>",
+    "files": [
+      "server/file_relay.py"
+    ],
+    "criteria": [
+      "Trung chuyển tập tin 10MB giữa 2 client qua máy chủ, bộ nhớ RAM máy chủ duy trì ổn định, dung lượng chiếm dụng tăng thêm không quá 5MB."
+    ]
+  },
+  {
+    "id": "B9",
+    "who": "",
+    "group": "B",
+    "deadline": "Giai đoạn 3",
+    "title": "Xử lý Lỗi và Nâng cao Độ bền vững (Server Resilience)",
+    "desc": "<p style=\"margin-bottom:6px;\">Bao bọc toàn bộ các hàm xử lý socket và luồng bằng các khối <code>try/except</code> đối với các lỗi mạng phổ biến: <code>ConnectionResetError</code>, <code>BrokenPipeError</code>, <code>asyncio.TimeoutError</code>, lỗi gói tin sai định dạng, dữ liệu JSON rác. Ghi log cảnh báo nhưng không làm dừng tiến trình máy chủ.</p><ul style=\"margin-left:18px;margin-top:6px;margin-bottom:6px;\"><li style=\"margin-bottom:4px;\">Lỗi trong một tác vụ nền asyncio thường <strong>không</strong> làm sập máy chủ mà làm tác vụ đó <strong>chết âm thầm</strong> (ví dụ tác vụ quét heartbeat chết thì không ai bị xóa khỏi danh sách online nữa). Vì vậy bọc thân vòng lặp của mỗi tác vụ nền (quét registry, heartbeat, gửi lại) bằng <code>try/except Exception</code> + ghi log, để lỗi một lượt không giết cả tác vụ.</li></ul>",
+    "files": [
+      "server/main.py",
+      "server/router.py"
+    ],
+    "criteria": [
+      "Chạy script tấn công gửi 1000 gói tin rác ngẫu nhiên và ngắt kết nối đột ngột: Máy chủ vẫn hoạt động liên tục, phục vụ các client bình thường khác mà không bị crash."
+    ]
+  },
+  {
+    "id": "B10",
+    "who": "",
+    "group": "B",
+    "deadline": "Giai đoạn 3",
+    "title": "Kiểm thử Tải Đồng thời (Concurrency Stress Test)",
+    "desc": "<p style=\"margin-bottom:6px;\">Viết kịch bản tự động giả lập 20 client kết nối cùng một thời điểm: Bắt tay TCP, đăng nhập, gửi tin nhắn liên tục, truyền file và ngắt kết nối tuần tự. Đo đạc độ trễ xử lý thông điệp và theo dõi rò rỉ bộ nhớ.</p>",
+    "files": [
+      "tests/test_concurrency_server.py"
+    ],
+    "criteria": [
+      "20 client thực hiện hơn 200 lượt đăng nhập/gửi tin mà không có thông điệp nào bị thất lạc. Độ trễ chuyển tiếp tin chat trung bình dưới 10ms (đo riêng, <strong>không tính</strong> đăng nhập vì PBKDF2 tự nó đã tốn 50–100ms). Trong lúc 20 client cùng đăng nhập, tin chat của các client đã online vẫn không bị trễ thêm."
+    ]
+  },
+  {
+    "id": "B11",
+    "who": "",
+    "group": "B",
+    "deadline": "Hoàn thành trong Giai đoạn 3",
+    "title": "Sơ đồ Kiến trúc và Báo cáo Tầng Máy chủ",
+    "desc": "<p style=\"margin-bottom:6px;\">Vẽ sơ đồ kiến trúc tổng thể toàn bộ hệ thống (Client ↔ TCP/UDP ↔ Server), hoàn thiện sơ đồ trạng thái đăng nhập, viết tài liệu giải trình mô hình phân quyền và bảo mật để đưa vào báo cáo tổng kết. Ghi rõ các giới hạn: mã hóa client↔server (không end-to-end), và MITM khi trao khóa nếu không làm phần chữ ký Ed25519 ở B2. Ghi lý do chọn asyncio thay vì multithreading.</p>",
+    "files": [
+      "docs/architecture.md",
+      "docs/diagrams/login_state.png"
+    ],
+    "criteria": [
+      "Tài liệu thiết kế kiến trúc chuẩn mực phục vụ bảo vệ đồ án."
+    ]
+  },
+  {
+    "id": "C1",
+    "who": "",
+    "group": "C",
+    "deadline": "Đầu Giai đoạn 1 (bàn giao cho A trước khi viết UDP Endpoint)",
+    "title": "Xây dựng Module Cấu trúc Gói tin (shared/packet.py)",
+    "desc": "<p style=\"margin-bottom:6px;\">Cài đặt lớp <code>Packet</code> với 11 trường theo thỏa thuận G1. Dùng <code>struct.pack('>BBBIHIIIIHI', ...)</code> và <code>struct.unpack</code> để đóng/giải mã header 31 bytes. Tích hợp tính toán và kiểm tra mã CRC32 bằng thư viện <code>zlib</code> theo đúng thứ tự ở G1 (tính trên header với Checksum = 0 + payload). Hỗ trợ đóng gói danh sách SACK ranges vào payload của gói ACK. Viết unit test kiểm thử độc lập.</p>",
+    "files": [
+      "shared/packet.py",
+      "tests/test_packet.py"
+    ],
+    "criteria": [
+      "Test round-trip thành công 100% <strong>với giá trị lớn ở mọi trường</strong> (ví dụ <code>checksum = 0xDEADBEEF</code>, <code>length = 1050</code>, <code>seq = 2**32 - 1</code>); test <code>struct.calcsize(fmt) == 31</code> chỉ là phụ, vì đảo thứ tự hai trường H/I vẫn cho cùng tổng kích thước nên <code>calcsize</code> không phát hiện được. Cố tình sửa 1 bit dữ liệu lập tức phát hiện mã kiểm tra checksum không hợp lệ. Bàn giao đúng hẹn cho Người A."
+    ]
+  },
+  {
+    "id": "C2",
+    "who": "",
+    "group": "C",
+    "deadline": "Giai đoạn 1 (bàn giao cho A để kiểm thử Stop-and-Wait)",
+    "title": "Xây dựng Bộ Giả lập Mạng Suy hao (LossyTransport)",
+    "desc": "<p style=\"margin-bottom:6px;\">Cài đặt lớp <code>LossyTransport</code> bao bọc bên ngoài bất kỳ transport nào. Hỗ trợ cấu hình các tham số suy hao mạng thực tế:</p><ul style=\"margin-left:18px;margin-top:6px;margin-bottom:6px;\"><li style=\"margin-bottom:4px;\"><code>loss_pct</code>: Tỷ lệ phần trăm làm rơi gói ngẫu nhiên.</li><li style=\"margin-bottom:4px;\"><code>delay_ms</code> và <code>jitter_ms</code>: Độ trễ cơ sở kèm độ dao động ngẫu nhiên.</li><li style=\"margin-bottom:4px;\"><code>dup_pct</code>: Tỷ lệ nhân đôi gói tin.</li><li style=\"margin-bottom:4px;\"><code>reorder_pct</code>: Tỷ lệ đảo lộn thứ tự nhận gói.</li><li style=\"margin-bottom:4px;\"><code>stream_loss</code>: tỷ lệ mất gói riêng theo Stream ID, ví dụ <code>{3: 0.5}</code> (đọc <code>StreamID</code> từ header trước khi quyết định bỏ gói). Cần cho test HoL ở A4 và C8.</li><li style=\"margin-bottom:4px;\"><code>direction</code>: áp suy hao cho một chiều hay cả hai chiều.</li></ul>",
+    "files": [
+      "transport/lossy.py",
+      "tests/test_lossy.py"
+    ],
+    "criteria": [
+      "Thử nghiệm truyền 1000 gói tin với cấu hình 20% mất gói: Số lượng gói bị hủy nằm trong khoảng sai số cho phép (18% - 22%). Bàn giao cho Người A để bắt đầu kiểm thử Stop-and-Wait."
+    ]
+  },
+  {
+    "id": "C3",
+    "who": "",
+    "group": "C",
+    "deadline": "Giai đoạn 1",
+    "title": "Xây dựng ClientAgent và Giao diện Dòng lệnh (CLI)",
+    "desc": "<p style=\"margin-bottom:6px;\">Cài đặt lớp <code>ClientAgent</code> đóng gói toàn bộ logic phía người dùng: <code>connect()</code>, <code>login(user, pwd)</code>, <code>send_chat(msg)</code>, <code>send_dm(to, msg)</code>, <code>send_file(path, to)</code>, và đăng ký lắng nghe sự kiện <code>on_event(cb)</code>. Ở giai đoạn đầu, kết nối qua <code>FakeTransport</code> để kiểm thử; sau mốc M1 chuyển sang gọi UDP Transport thật. Viết giao diện dòng lệnh <code>client/cli.py</code> cho phép người dùng gõ lệnh chat và gửi file trực tiếp từ Terminal.</p>",
+    "files": [
+      "client/agent.py",
+      "client/cli.py"
+    ],
+    "criteria": [
+      "Người dùng mở 2 cửa sổ terminal có thể đăng nhập, xem danh sách bạn bè và chat trực tiếp với nhau thông qua CLI."
+    ]
+  },
+  {
+    "id": "C4",
+    "who": "",
+    "group": "C",
+    "deadline": "Giai đoạn 2",
+    "title": "Xây dựng Máy chủ Web HTTP Mini bằng Socket Thô (Raw HTTP Server)",
+    "desc": "<p style=\"margin-bottom:6px;\">Tự lập trình máy chủ HTTP/1.1 chạy <strong>bên trong client agent</strong> (trình duyệt ↔ client agent ↔ server), cổng mặc định 8080, đổi được bằng <code>--http-port</code> để chạy nhiều agent trên cùng một máy. Sử dụng raw socket (không framework). Tự bóc tách chuỗi HTTP request: phương thức, đường dẫn URL, các trường Header và Body.</p><ul style=\"margin-left:18px;margin-top:6px;margin-bottom:6px;\"><li style=\"margin-bottom:4px;\">Phục vụ tệp tĩnh: <code>GET /</code> -> trả về <code>ui/static/index.html</code> kèm các tệp CSS, JS với đúng <code>Content-Type</code>.</li><li style=\"margin-bottom:4px;\">Phục vụ REST API: <code>POST /api/login</code>, <code>POST /api/send</code>, <code>GET /api/users</code>.</li><li style=\"margin-bottom:4px;\">Tải lên tệp tin: <code>POST /api/upload</code> nhận dữ liệu nhị phân thô (Raw Body) kèm tiêu đề <code>X-Filename</code> (không dùng multipart phức tạp).</li><li style=\"margin-bottom:4px;\">Đẩy sự kiện thời gian thực (SSE): <code>GET /api/events</code> duy trì kết nối HTTP mở, gửi dữ liệu dạng <code>data: {...}\n\n</code> cho trình duyệt mỗi khi có tin nhắn mới hoặc danh sách người dùng thay đổi.</li></ul>",
+    "files": [
+      "ui/http_server.py"
+    ],
+    "criteria": [
+      "Dùng lệnh <code>curl</code> gọi thử các endpoint API trả về kết quả chuẩn mã 200 OK và dữ liệu JSON chính xác; trình duyệt web tải được toàn bộ giao diện tĩnh."
+    ]
+  },
+  {
+    "id": "C5",
+    "who": "",
+    "group": "C",
+    "deadline": "Giai đoạn 2",
+    "title": "Thiết kế Giao diện Web Người dùng Tương tác (Web UI)",
+    "desc": "<p style=\"margin-bottom:6px;\">Thiết kế giao diện web hiện đại, phong cách tối giản, nền sáng thanh lịch sử dụng HTML/CSS/JS thuần:</p><ul style=\"margin-left:18px;margin-top:6px;margin-bottom:6px;\"><li style=\"margin-bottom:4px;\">Màn hình xác thực: Form Đăng ký / Đăng nhập với thông báo lỗi trực quan.</li><li style=\"margin-bottom:4px;\">Thanh bên trái (Sidebar): Hiển thị danh sách người dùng đang online (tự động cập nhật tức thời qua SSE).</li><li style=\"margin-bottom:4px;\">Khu vực trung tâm: Khung chat hiển thị lịch sử tin nhắn, tên người gửi và dấu thời gian (timestamp). Có tab chuyển đổi giữa \"Phòng chat chung\" và \"Chat riêng với [User]\".</li><li style=\"margin-bottom:4px;\">Chức năng gửi tệp tin: Hộp thoại chọn tệp, thanh hiển thị tiến độ phần trăm tải lên/tải xuống (Progress bar) và thông báo tải file hoàn tất.</li></ul>",
+    "files": [
+      "ui/static/index.html",
+      "ui/static/css/style.css",
+      "ui/static/js/app.js"
+    ],
+    "criteria": [
+      "Chạy 2 client agent trên cùng máy (<code>--http-port 8080</code> và <code>--http-port 8081</code>), mở 2 tab trình duyệt tới hai cổng đó, đăng nhập 2 tài khoản khác nhau, nhắn tin hiển thị qua lại tức thì dưới 1 giây, gửi tệp có thanh tiến độ chạy mượt mà. (Hai tab cùng trỏ vào một agent chỉ là một phiên đăng nhập.)"
+    ]
+  },
+  {
+    "id": "C6",
+    "who": "",
+    "group": "C",
+    "deadline": "Cuối Giai đoạn 2",
+    "title": "Truyền nhận Tập tin Nhị phân và Kiểm tra Toàn vẹn SHA-256",
+    "desc": "<p style=\"margin-bottom:6px;\">Cài đặt module <code>client/file_transfer.py</code>:</p><ul style=\"margin-left:18px;margin-top:6px;margin-bottom:6px;\"><li style=\"margin-bottom:4px;\">Phía gửi: Đọc tệp tin dạng nhị phân <strong>theo từng khối</strong> (không <code>read()</code> cả tệp một lần trong event loop; tính SHA-256 trong <code>run_in_executor</code> hoặc cập nhật dần theo từng khối), tính mã băm SHA-256 toàn tệp. Gửi thông điệp <code>FILE_OFFER</code> (Stream 1). Khi nhận <code>FILE_ACCEPT</code>, mở Stream 3+ riêng và gửi lần lượt các chunk nhị phân <code>[16B transfer_id][4B offset][chunk_data]</code> (kích thước tối đa 1000B). Sau khi gửi hết, gửi thông điệp <code>FILE_DONE</code> mang mã SHA-256 gốc.</li><li style=\"margin-bottom:4px;\">Phía nhận: Nhận <code>FILE_OFFER</code>, tự động gửi <code>FILE_ACCEPT</code>, tiếp nhận các chunk nhị phân ghi vào bộ đệm bộ nhớ theo đúng offset. Khi nhận <code>FILE_DONE</code>, ráp tệp, tính toán lại mã băm SHA-256. Nếu khớp 100%, ghi tệp ra đĩa vào thư mục <code>downloads/</code>; nếu sai lệch mã băm, lập tức xóa tệp hỏng và thông báo lỗi.</li><li style=\"margin-bottom:4px;\"><strong>Tệp rỗng (0 byte):</strong> có 0 chunk. Nhận <code>FILE_DONE</code> ngay sau <code>FILE_ACCEPT</code> mà không có chunk nào là hợp lệ; bên nhận tạo tệp rỗng và so SHA-256 của chuỗi rỗng.</li></ul>",
+    "files": [
+      "client/file_transfer.py",
+      "server/file_relay.py"
+    ],
+    "criteria": [
+      "Truyền thành công một tệp dung lượng 10MB qua mạng mô phỏng có 10% rớt gói: Tệp tải về có mã băm SHA-256 trùng khớp hoàn toàn với tệp gốc, mở tệp xem nội dung nguyên vẹn."
+    ]
+  },
+  {
+    "id": "C7",
+    "who": "",
+    "group": "C",
+    "deadline": "Bắt đầu từ mốc M1, chốt toàn diện trong Giai đoạn 3",
+    "title": "Điều phối Tích hợp Hệ thống Toàn diện (End-to-End Integration)",
+    "desc": "<p style=\"margin-bottom:6px;\">Điều phối chuyển đổi toàn bộ mã nguồn của B và C từ <code>FakeTransport</code> sang chạy trực tiếp trên UDP Transport thật của Người A từ mốc M1. Chạy kiểm thử smoke test end-to-end liên tục sau mỗi lần Người A hoàn thành một tính năng mới (Sliding Window, Multi-stream, Congestion Control). Phát hiện sớm các lỗi không tương thích giữa các tầng để nhóm cùng xử lý.</p>",
+    "files": [
+      "Cấu hình tích hợp hệ thống"
+    ],
+    "criteria": [
+      "Toàn bộ hệ thống chạy đồng bộ trên UDP Transport thật: Giao diện Web ↔ ClientAgent ↔ UDP Streaming ↔ Server Router ↔ Cipher AES-GCM."
+    ]
+  },
+  {
+    "id": "C8",
+    "who": "",
+    "group": "C",
+    "deadline": "Giai đoạn 3",
+    "title": "Xây dựng Bộ Kiểm thử Tự động pytest cho Môi trường Mạng Xấu",
+    "desc": "<p style=\"margin-bottom:6px;\">Viết bộ kịch bản kiểm thử tự động toàn diện bao quát các tiêu chí đánh giá của đề bài:</p><ul style=\"margin-left:18px;margin-top:6px;margin-bottom:6px;\"><li style=\"margin-bottom:4px;\"><code>tests/test_reliable.py</code>: Kiểm thử truyền 1MB qua mạng mất 20% gói và xáo trộn 10% thứ tự.</li><li style=\"margin-bottom:4px;\"><code>tests/test_file.py</code>: Kiểm thử truyền tệp 10MB bảo toàn tính toàn vẹn SHA-256; thêm trường hợp tệp rỗng (0 byte) và tệp có kích thước không chia hết cho 1000.</li><li style=\"margin-bottom:4px;\"><code>tests/test_crypto.py</code>: Kiểm thử tính hợp lệ của quá trình mã hóa/giải mã AES-256-GCM và bắt lỗi khi AAD bị thay đổi; kiểm tra gói gửi lại mang <code>PktNum</code> mới (không trùng nonce).</li><li style=\"margin-bottom:4px;\"><code>tests/test_hol.py</code>: Kiểm thử chứng minh luồng chat không bị nghẽn khi luồng file bị mất gói (<code>stream_loss={3: 0.5}</code>), và một client đang gửi tệp lớn không làm chậm tin chat của các client khác.</li><li style=\"margin-bottom:4px;\"><code>tests/test_disconnect.py</code>: Kiểm thử máy chủ dọn dẹp phiên khi client ngắt kết nối đột ngột.</li></ul>",
+    "files": [
+      "Thư mục `tests/"
+    ],
+    "criteria": [
+      "Chạy lệnh <code>pytest tests/ -v</code> cho kết quả tất cả các bài kiểm tra đều đạt (PASS) trong thời gian dưới 60 giây, với asyncio chạy ở chế độ debug và không có cảnh báo bước chạy chậm (> 0,1 giây)."
+    ]
+  },
+  {
+    "id": "C9",
+    "who": "",
+    "group": "C",
+    "deadline": "Cuối Giai đoạn 3",
+    "title": "Hoàn thiện Tài liệu README và Báo cáo Kỹ thuật PDF",
+    "desc": "<ul style=\"margin-left:18px;margin-top:6px;margin-bottom:6px;\"><li style=\"margin-bottom:4px;\">Hoàn thiện <code>README.md</code>: Hướng dẫn chi tiết từ cài đặt môi trường ảo, cài thư viện phụ thuộc, lệnh chạy server, lệnh chạy client, cách mở giao diện web và cách chạy bộ test. Người ngoài đọc vào có thể chạy thành công ứng dụng trong vòng 5 phút.</li><li style=\"margin-bottom:4px;\">Biên soạn Báo cáo Kỹ thuật PDF: Tổng hợp sơ đồ kiến trúc hệ thống (B11), đặc tả giao thức và cấu trúc gói tin (A8), sơ đồ tuần tự các luồng đăng nhập và truyền tệp (G6), và phần tổng kết các khó khăn thực tế cùng giải pháp (Challenges & Solutions).</li></ul>",
+    "files": [
+      "README.md",
+      "docs/challenges.md",
+      "Báo cáo kỹ thuật PDF"
+    ],
+    "criteria": [
+      "Bộ hồ sơ dự án hoàn chỉnh, chuẩn mực, sẵn sàng nộp bài bảo vệ đồ án."
+    ]
+  }
+];
+
+/* ── RUBRIC DATA (10 STEPS) ── */
+const RUBRIC_DATA = [
+  { step: '01', name: 'Setup & Protocol Design', who: 'Cả nhóm', tasks: 'G1, G2, G3, G4, G6, G7', pts: '1.0 pt' },
+  { step: '02', name: 'Client-Server Handshake', who: 'Người A, Người B', tasks: 'B2, B4, A1', pts: '1.0 pt' },
+  { step: '03', name: 'Authentication & State', who: 'Người B', tasks: 'B3, B5', pts: '1.0 pt' },
+  { step: '04', name: 'Concurrency Implementation', who: 'Người A, Người B', tasks: 'B1, B10, A1', pts: '1.0 pt' },
+  { step: '05', name: 'Time-sensitive Streaming', who: 'Người A, Người B', tasks: 'A4, B7', pts: '1.0 pt' },
+  { step: '06', name: 'Reliable File Transfer', who: 'Người A, Người C', tasks: 'A2, A3, C6', pts: '1.0 pt' },
+  { step: '07', name: 'Network Resilience', who: 'Người A, Người B', tasks: 'A7, B9', pts: '1.0 pt' },
+  { step: '08', name: 'Security Layer', who: 'Người B', tasks: 'B2, B6', pts: '1.0 pt' },
+  { step: '09', name: 'HTTP-based UI with JS', who: 'Người C', tasks: 'C4, C5', pts: '1.0 pt' },
+  { step: '10', name: 'Testing & Code Quality', who: 'Cả nhóm', tasks: 'C1, C2, C8, C9', pts: '1.0 pt' }
+];
+
+/* ── STATE MANAGEMENT (LOCALSTORAGE) ── */
+const STORAGE_KEY = 'co3093_plan_v3_state';
+const DEFAULT_INITIAL_STATE = { 'G1': 'done', 'B2': 'done', 'B3': 'done', 'B5': 'done', 'B6': 'done', 'C6': 'done', 'A1': 'done', 'A4': 'done', 'C1': 'done', 'G5': 'done', 'B1': 'done', 'B4': 'done', 'B7': 'done', 'B8': 'done', 'B10': 'done', 'C2': 'done', 'C7': 'done', 'C8': 'done', 'B9': 'done', 'C5': 'done', 'C3': 'done', 'C4': 'done', 'C9': 'done' };
+let appState = {};
+try {
+  const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  appState = Object.assign({}, DEFAULT_INITIAL_STATE, saved);
+} catch (e) {
+  appState = Object.assign({}, DEFAULT_INITIAL_STATE);
+}
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+}
+
+function getStatus(id) {
+  return appState[id] || 'todo';
+}
+
+function setStatus(id, status) {
+  appState[id] = status;
+  saveState();
+  updateUI();
+}
+
+/* ── FILTERING & SEARCH ── */
+let currentPersonFilter = 'all';
+let currentStatusFilter = 'all';
+let currentSearchQuery = '';
+
+function filterTasks(person, btn) {
+  currentPersonFilter = person;
+  document.querySelectorAll('[data-filter]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTaskList();
+}
+
+function filterStatus(status, btn) {
+  currentStatusFilter = status;
+  document.querySelectorAll('[data-status]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTaskList();
+}
+
+function searchTasks(query) {
+  currentSearchQuery = query.toLowerCase().trim();
+  renderTaskList();
+}
+
+/* ── RENDERING ── */
+function getBadgeClass(group) {
+  if (group === 'G') return 'badge-g';
+  if (group === 'A') return 'badge-a';
+  if (group === 'B') return 'badge-b';
+  return 'badge-c';
+}
+
+function renderTaskList() {
+  const container = document.getElementById('task-container');
+  const filtered = TASKS.filter(t => {
+    const status = getStatus(t.id);
+    const matchesPerson = (currentPersonFilter === 'all') || (t.group === currentPersonFilter);
+    const matchesStatus = (currentStatusFilter === 'all') || (status === currentStatusFilter);
+    const matchesSearch = !currentSearchQuery || 
+      t.id.toLowerCase().includes(currentSearchQuery) ||
+      t.title.toLowerCase().includes(currentSearchQuery) ||
+      t.desc.toLowerCase().includes(currentSearchQuery);
+    return matchesPerson && matchesStatus && matchesSearch;
+  });
+
+  document.getElementById('filter-count').textContent = `Hiển thị: ${filtered.length} / ${TASKS.length}`;
+
+  if (filtered.length === 0) {
+    container.innerHTML = `<div style="text-align:center;padding:32px;color:var(--text-soft);background:#ffffff;border:1px solid var(--border-light);border-radius:6px;">Không tìm thấy nhiệm vụ phù hợp với bộ lọc.</div>`;
+    return;
+  }
+
+  container.innerHTML = filtered.map(t => {
+    const status = getStatus(t.id);
+    const isDone = (status === 'done');
+    const badgeClass = getBadgeClass(t.group);
+    
+    return `
+      <div class="task-card ${isDone ? 'is-done' : ''}" id="card-${t.id}">
+        <div class="task-header" onclick="toggleTaskDetail('${t.id}')">
+          <span class="task-id ${badgeClass}">${t.id}</span>
+          <div class="task-title-wrap">
+            <div class="task-title ${isDone ? 'struck' : ''}">${t.title}</div>
+            <div class="task-meta">
+              <span>Phụ trách: <strong>${t.who}</strong></span>
+              <span>•</span>
+              <span>Thời hạn: ${t.deadline}</span>
+            </div>
+          </div>
+          <span class="task-deadline">${t.deadline}</span>
+          <select class="status-select status-${status}" id="select-${t.id}"
+            onclick="event.stopPropagation()"
+            onchange="setStatus('${t.id}', this.value)">
+            <option value="todo" ${status === 'todo' ? 'selected' : ''}>To Do</option>
+            <option value="wip" ${status === 'wip' ? 'selected' : ''}>In Progress</option>
+            <option value="done" ${status === 'done' ? 'selected' : ''}>Done</option>
+          </select>
+          <div class="toggle-arrow" id="arrow-${t.id}">▼</div>
+        </div>
+
+        <div class="task-body" id="body-${t.id}">
+          <div class="task-detail-grid">
+            <div class="detail-block">
+              <div class="detail-heading">Nhiệm vụ cụ thể (Làm gì?)</div>
+              <div class="detail-content">${t.desc}</div>
+              
+              <div class="detail-heading" style="margin-top:12px;">Mục đích kỹ thuật (Tại sao cần?)</div>
+              <div class="detail-content" style="color:var(--text-muted);">${t.why}</div>
+
+              <div class="detail-heading" style="margin-top:12px;">Tập tin liên quan</div>
+              <div class="file-list">
+                ${t.files.map(f => `<span class="file-tag">${f}</span>`).join('')}
+              </div>
+            </div>
+
+            <div class="detail-block">
+              <div class="detail-heading">Tiêu chí nghiệm thu (Acceptance Criteria)</div>
+              <ul class="criteria-list">
+                ${t.criteria.map(c => `
+                  <li class="criteria-item">
+                    <span class="criteria-check">✓</span>
+                    <span>${c}</span>
+                  </li>
+                `).join('')}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function toggleTaskDetail(id) {
+  const body = document.getElementById(`body-${id}`);
+  const arrow = document.getElementById(`arrow-${id}`);
+  if (body) {
+    body.classList.toggle('open');
+    arrow.classList.toggle('open');
+  }
+}
+
+function renderRubric() {
+  const tbody = document.getElementById('rubric-body');
+  tbody.innerHTML = RUBRIC_DATA.map(r => `
+    <tr>
+      <td class="step-col">Bước ${r.step}</td>
+      <td><strong>${r.name}</strong></td>
+      <td style="color:var(--text-muted);">${r.who}</td>
+      <td><code style="font-family:var(--font-mono);font-size:11.5px;color:var(--accent-primary);">${r.tasks}</code></td>
+      <td class="score-col">${r.pts}</td>
+    </tr>
+  `).join('');
+}
+
+/* ── STATS & PROGRESS UPDATE ── */
+function updateUI() {
+  renderTaskList();
+
+  const total = TASKS.length;
+  const doneCount = TASKS.filter(t => getStatus(t.id) === 'done').length;
+  const pct = Math.round((doneCount / total) * 100);
+
+  document.getElementById('global-fill').style.width = `${pct}%`;
+  document.getElementById('global-pct').textContent = `${pct}%`;
+  document.getElementById('global-count').textContent = `${doneCount} / ${total}`;
+
+  // Group stats
+  const countGroup = g => {
+    const list = TASKS.filter(t => t.group === g);
+    const done = list.filter(t => getStatus(t.id) === 'done').length;
+    return `${done}/${list.length}`;
+  };
+
+  document.getElementById('stat-g').textContent = countGroup('G');
+  document.getElementById('stat-a').textContent = countGroup('A');
+  document.getElementById('stat-b').textContent = countGroup('B');
+  document.getElementById('stat-c').textContent = countGroup('C');
+}
+
+/* ── INITIALIZATION ── */
+renderRubric();
+updateUI();
+</script>
+</body>
+</html>
