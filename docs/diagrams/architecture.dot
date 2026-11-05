@@ -1,0 +1,28 @@
+digraph arch {
+  rankdir=LR; fontname="DejaVu Sans"; compound=true; newrank=true;
+  node [fontname="DejaVu Sans", shape=box, style="rounded,filled", fillcolor="#ffffff", color="#555555", fontsize=11];
+  edge [fontname="DejaVu Sans", fontsize=10];
+
+  subgraph cluster_client { label="Máy người dùng (Người C)"; style="rounded,filled"; fillcolor="#fdf6e3"; color="#c9a227";
+    browser [label="Trình duyệt\nWeb UI (JS thuần)"];
+    agent [label="ClientAgent\nHTTP server thô :8080\n+ tcp_login + file_transfer"];
+    browser -> agent [label="HTTP REST\n+ SSE", dir=both];
+  }
+  subgraph cluster_server { label="Máy chủ (Người B)"; style="rounded,filled"; fillcolor="#eef3fb"; color="#4a6fa5";
+    login [label="LoginServer :9000\nX25519 + HKDF + chữ ký Ed25519\nPBKDF2 (executor)"];
+    users [label="users.json\n(salt + hash)", shape=cylinder, fillcolor="#f2f2f2"];
+    table [label="SessionTable\nconn_id -> khóa UDP\n(pending)"];
+    binder [label="UdpBinder\ngói HELLO (dùng một lần)"];
+    registry [label="Registry\nusername -> Session\noutbox + writer task"];
+    router [label="Router\nStream 1: BCAST / DM"];
+    relay [label="FileRelay\nStream 3+ (accept_stream,\nback-pressure)"];
+    login -> users; login -> table [label="AUTH_OK"]; table -> binder [label="cipher_for(conn_id)"];
+    binder -> registry [label="add"]; router -> registry; relay -> registry;
+  }
+  subgraph cluster_transport { label="Transport (Người A)"; style="rounded,filled"; fillcolor="#e6f4ea"; color="#3a7d44";
+    udp [label="UDPEndpoint :9001\nSliding window + SACK\nmulti-stream, cwnd\nAESGCMCipher (B6)"];
+  }
+  agent -> login [label="TCP: đăng nhập\n(đóng sau khi bind)", color="#4a6fa5"];
+  agent -> udp [label="UDP streaming\nmã hóa AES-256-GCM", color="#3a7d44", dir=both];
+  udp -> binder [label="on_connection"]; udp -> router [label="Stream 1"]; udp -> relay [label="Stream 3+"];
+}
