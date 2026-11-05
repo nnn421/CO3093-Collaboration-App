@@ -31,6 +31,9 @@ desktop.ini
 downloads/*
 !downloads/.gitkeep
 users.json
+users.json.tmp
+server_identity.key
+server_identity.pub
 *.db
 test_*.db
 *.log

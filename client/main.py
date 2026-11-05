@@ -27,7 +27,7 @@ if hasattr(sys.stderr, "reconfigure"):
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from client.agent import ClientAgent
-from shared.config import DEFAULT_SERVER_HOST, HTTP_PORT, TCP_PORT, UDP_PORT
+from shared.config import HTTP_PORT, SERVER_HOST as DEFAULT_SERVER_HOST, TCP_PORT, UDP_PORT
 from ui.http_server import HTTPServer
 
 logging.basicConfig(
@@ -47,6 +47,9 @@ async def main() -> None:
     parser.add_argument("--ui-host", type=str, default="0.0.0.0", help="Địa chỉ IP lắng nghe của Web UI (mặc định 0.0.0.0)")
     parser.add_argument("--downloads", type=str, default="downloads", help="Thư mục lưu tệp tải về")
     parser.add_argument("--loss", type=float, default=0.0, help="Tỷ lệ rớt gói tin giả lập từ 0 đến 100")
+    parser.add_argument("--server-key", type=str, default=None,
+                        help="Khóa danh tính server (64 ký tự hex server in ra khi khởi động). "
+                             "Bỏ trống nếu chạy cùng máy với server: tự đọc file server_identity.pub")
     args = parser.parse_args()
 
     # Xác định IP LAN của máy khách
@@ -74,7 +77,8 @@ async def main() -> None:
         tcp_port=args.tcp_port,
         udp_port=args.udp_port,
         downloads_dir=args.downloads,
-        loss_pct=args.loss
+        loss_pct=args.loss,
+        server_key_hex=args.server_key
     )
 
     # 2. Khởi tạo HTTP Bridge phục vụ Web UI

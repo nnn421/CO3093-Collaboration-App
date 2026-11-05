@@ -254,10 +254,10 @@ function handleIncomingEvent(msg) {
       channel: 'public',
       sender: isSelf ? 'Bạn' : msg.from,
       rawSender: msg.from,
-      content: msg.content,
+      content: msg.text,
       isDm: false,
       isSelf: isSelf,
-      timestamp: msg.timestamp || Math.floor(Date.now() / 1000)
+      timestamp: msg.ts ? Math.floor(msg.ts / 1000) : Math.floor(Date.now() / 1000)
     };
 
     if (!messagesStore['public']) messagesStore['public'] = [];
@@ -278,10 +278,10 @@ function handleIncomingEvent(msg) {
       channel: peer,
       sender: isSelf ? 'Bạn' : msg.from,
       rawSender: msg.from,
-      content: msg.content,
+      content: msg.text,
       isDm: true,
       isSelf: isSelf,
-      timestamp: msg.timestamp || Math.floor(Date.now() / 1000)
+      timestamp: msg.ts ? Math.floor(msg.ts / 1000) : Math.floor(Date.now() / 1000)
     };
 
     if (!messagesStore[peer]) messagesStore[peer] = [];
@@ -321,7 +321,18 @@ function handleIncomingEvent(msg) {
     appendSystemNotice(`Đã nhận tệp "${msg.filename}" từ @${msg.from}. Bạn có thể tải về ở khung chat hoặc mục Tệp đã nhận!`);
     fetchDownloads();
   } else if (type === 'ERROR') {
-    appendSystemNotice(`Thông báo lỗi: ${msg.message}`);
+    // protocol_messages.md §5.4: code để xử lý, detail để người đọc
+    const texts = {
+      USER_OFFLINE: 'Người nhận không online.',
+      FILE_ABORTED: 'Lần truyền tệp bị hủy.',
+      SESSION_REPLACED: 'Tài khoản vừa đăng nhập ở nơi khác, phiên này bị đóng.',
+      BAD_MESSAGE: 'Thông điệp không hợp lệ.',
+      UNKNOWN_TRANSFER: 'Lần truyền tệp không tồn tại.'
+    };
+    const extra = msg.detail ? ` (${msg.detail})` : '';
+    appendSystemNotice(`Lỗi ${msg.code}: ${texts[msg.code] || ''}${extra}`);
+  } else if (type === 'DISCONNECTED') {
+    appendSystemNotice(msg.detail || 'Mất kết nối với server.');
   }
 }
 
