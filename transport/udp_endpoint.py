@@ -48,6 +48,7 @@ RECV_BUFFER_PIECES = 256                    # rwnd: số mảnh tối đa chờ 
 HEARTBEAT_QUEUE = 16
 REPLAY_WINDOW = 4096
 MIN_RTO = 0.2
+FIRST_RTO = 1.0     # RTO khi chưa có mẫu RTT: 1 giây theo RFC 6298 mục 2.1 (plan G4 ghi INITIAL_RTO = 2, xem docs)
 MAX_BACKOFF_RTO = 4.0
 TICK = 0.05
 
@@ -234,7 +235,7 @@ class Connection:
         self._fired = False
         self.srtt: float | None = None
         self.rttvar = 0.0
-        self.rto = float(config.INITIAL_RTO)
+        self.rto = FIRST_RTO
         self._timer = asyncio.get_running_loop().create_task(self._timer_loop())
 
     # ---------------------------------------------------------------- API
@@ -328,6 +329,11 @@ class Connection:
                         self._shutdown(f"gửi lại quá {config.MAX_RETRIES} lần không có ACK")
                         return
                     self._transmit(st, seq, o, retransmit=True)
+
+    def _retransmit_all(self) -> None:
+        for st in list(self._streams.values()):
+            for seq, o in list(st._unacked.items()):
+                self._transmit(st, seq, o, retransmit=True)
 
     def _on_packet(self, f, payload: bytes, addr) -> None:
         typ, sid, seq, ack, win = f[1], f[4], f[6], f[7], f[8]
@@ -429,8 +435,18 @@ class UDPEndpoint(asyncio.DatagramProtocol):
         typ, conn_id, pkt = f[1], f[3], f[5]
         conn = self.conns.get(conn_id)
         if typ == T_HELLO:
-            if conn is not None or self._cipher_lookup is None:
-                return                      # HELLO lặp lại hoặc phát lại: bỏ
+            if conn is not None:
+                # HELLO lặp lại: KHÔNG gắn lại. Nhưng nó cho biết client chưa nhận được gì (USER_LIST đầu tiên
+                # có thể đã mất), nên gửi lại ngay các gói chưa ACK thay vì chờ hết RTO.
+                if self._cipher_lookup is not None and addr == conn.peer_addr:
+                    try:
+                        conn.cipher.decrypt(nonce_from_counter(pkt), ct, aad)
+                    except Exception:
+                        return
+                    conn._retransmit_all()
+                return
+            if self._cipher_lookup is None:
+                return
             cipher = self._cipher_lookup(conn_id)
             if cipher is None:
                 return
